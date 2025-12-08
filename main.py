@@ -1,14 +1,18 @@
+import logging
 from flask import Flask, jsonify, request
 import requests
 
 app = Flask(__name__)
 
+# Filter out healthcheck requests from werkzeug logs
+class _HealthLogFilter(logging.Filter):
+    def filter(self, record):
+        args = getattr(record, "args", ())
+        # record.args[0] holds the request line, e.g. "GET /health HTTP/1.1"
+        return not (args and "/health" in str(args[0]))
 
-@app.before_request
-def skip_health_logging():
-    if request.path == "/health":
-        # Prevent logging the health endpoint in Werkzeug/Flask logs
-        request.environ["werkzeug.skip_log"] = True
+
+logging.getLogger("werkzeug").addFilter(_HealthLogFilter())
 
 
 @app.route("/radarr-webhook", methods=["POST"])
