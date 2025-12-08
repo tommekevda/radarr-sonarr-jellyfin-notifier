@@ -1,16 +1,16 @@
-# Radarr Jellyfin Notifier
+# Radarr/Sonarr Jellyfin Notifier
 
-This is a simple Flask application that listens for webhook events from Radarr and triggers a library refresh on Jellyfin.
+This is a simple Flask application that listens for webhook events from Radarr or Sonarr and triggers a library refresh on Jellyfin.
 
 ## How it works
 
-- The app exposes an endpoint `/radarr-webhook` to receive POST requests from Radarr.
-- Radarr should send custom headers: `X-Jellyfin-Url` (your Jellyfin server URL) and `X-Jellyfin-Api-Key` (your Jellyfin API key).
-- Upon receiving a Radarr event, the app triggers a refresh on the Jellyfin library by calling the Jellyfin API.
+- The app exposes two endpoints: `/radarr-webhook` for Radarr and `/sonarr-webhook` for Sonarr.
+- Radarr/Sonarr should send custom headers: `X-Jellyfin-Url` (your Jellyfin server URL) and `X-Jellyfin-Api-Key` (your Jellyfin API key).
+- Upon receiving a Radarr or Sonarr event, the app triggers a refresh on the Jellyfin library by calling the Jellyfin API.
 
 ## Flask Application
 
-The app runs a Flask server on port `5001` and listens for Radarr webhook events.
+The app runs a Flask server on port `5001` and listens for Radarr and Sonarr webhook events.
 
 ## Running with Docker
 
@@ -62,6 +62,16 @@ services:
 - Save and test the webhook.
 
 ![Alt text](readme/radarr.png)
+
+## Using Sonarr Webhook
+
+- In Sonarr, go to **Settings > Connect**.
+- Add a new **Webhook**.
+- Set the URL to `http://<your-server-ip>:5001/sonarr-webhook`.
+- Add the following custom headers:
+  - `X-Jellyfin-Url`: Your Jellyfin server URL (e.g. `http://jellyfin.local:8096`)
+  - `X-Jellyfin-Api-Key`: Your Jellyfin API key
+- Save and test the webhook.
 
 ## Running Locally (without Docker)
 
