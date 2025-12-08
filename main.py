@@ -4,6 +4,13 @@ import requests
 app = Flask(__name__)
 
 
+@app.before_request
+def skip_health_logging():
+    if request.path == "/health":
+        # Prevent logging the health endpoint in Werkzeug/Flask logs
+        request.environ["werkzeug.skip_log"] = True
+
+
 @app.route("/radarr-webhook", methods=["POST"])
 def handle_radarr_event():
     data = request.json
