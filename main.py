@@ -4,6 +4,9 @@ import requests
 
 app = Flask(__name__)
 
+# Configure basic logging to stdout
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
 # Filter out healthcheck requests from werkzeug logs
 class _HealthLogFilter(logging.Filter):
     def filter(self, record):
@@ -15,17 +18,45 @@ class _HealthLogFilter(logging.Filter):
 logging.getLogger("werkzeug").addFilter(_HealthLogFilter())
 
 
-@app.route("/radarr-webhook", methods=["POST"])
-def handle_radarr_event():
-    data = request.json
-    print("Received event from Radarr:", data.get("eventType"))
-
-    # Read custom headers from Radarr
+def _extract_jellyfin_headers():
+    missing = []
     jellyfin_url = request.headers.get("X-Jellyfin-Url")
     jellyfin_api_key = request.headers.get("X-Jellyfin-Api-Key")
 
-    if not jellyfin_url or not jellyfin_api_key:
-        return "Missing Jellyfin headers", 400
+    if not jellyfin_url:
+        missing.append("X-Jellyfin-Url")
+    if not jellyfin_api_key:
+        missing.append("X-Jellyfin-Api-Key")
+
+    if missing:
+        joined = ", ".join(missing)
+        logging.warning("Rejecting request missing headers=%s", joined)
+        return None, None, (f"Missing headers: {joined}", 400)
+
+    return jellyfin_url, jellyfin_api_key, None
+
+
+@app.route("/radarr-webhook", methods=["POST"])
+def handle_radarr_event():
+    data = request.get_json(silent=True) or {}
+    event_type = data.get("eventType")
+    movie = data.get("movie", {}) or {}
+    movie_file = data.get("movieFile", {}) or {}
+    movie_title = movie.get("title")
+    movie_year = movie.get("year")
+    movie_path = movie_file.get("relativePath") or movie_file.get("path")
+
+    logging.info(
+        "Radarr event=%s title=%s year=%s path=%s",
+        event_type,
+        movie_title,
+        movie_year,
+        movie_path,
+    )
+
+    jellyfin_url, jellyfin_api_key, error_response = _extract_jellyfin_headers()
+    if error_response:
+        return error_response
 
     headers = {"X-Emby-Token": jellyfin_api_key}
     refresh_url = f"{jellyfin_url}/Library/Refresh"
@@ -39,15 +70,23 @@ def handle_radarr_event():
 
 @app.route("/sonarr-webhook", methods=["POST"])
 def handle_sonarr_event():
-    data = request.json
-    print("Received event from Sonarr:", data.get("eventType"))
+    data = request.get_json(silent=True) or {}
+    event_type = data.get("eventType")
+    series = data.get("series", {}) or {}
+    episode_file = data.get("episodeFile", {}) or {}
+    series_title = series.get("title")
+    episode_path = episode_file.get("relativePath") or episode_file.get("path")
 
-    # Read custom headers from Sonarr
-    jellyfin_url = request.headers.get("X-Jellyfin-Url")
-    jellyfin_api_key = request.headers.get("X-Jellyfin-Api-Key")
+    logging.info(
+        "Sonarr event=%s series=%s episode_path=%s",
+        event_type,
+        series_title,
+        episode_path,
+    )
 
-    if not jellyfin_url or not jellyfin_api_key:
-        return "Missing Jellyfin headers", 400
+    jellyfin_url, jellyfin_api_key, error_response = _extract_jellyfin_headers()
+    if error_response:
+        return error_response
 
     headers = {"X-Emby-Token": jellyfin_api_key}
     refresh_url = f"{jellyfin_url}/Library/Refresh"
