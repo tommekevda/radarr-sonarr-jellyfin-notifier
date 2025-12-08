@@ -64,6 +64,8 @@ services:
   - `X-Jellyfin-Api-Key`: Your Jellyfin API key
 - Save and test the webhook.
 
+Test webhooks from Radarr (eventType `Test`) perform a Jellyfin reachability + API key check (`/System/Info`) and **do not** trigger a library refresh.
+
 ![Alt text](readme/radarr.png)
 
 ## Using Sonarr Webhook
@@ -75,6 +77,8 @@ services:
   - `X-Jellyfin-Url`: Your Jellyfin server URL (e.g. `http://jellyfin.local:8096`)
   - `X-Jellyfin-Api-Key`: Your Jellyfin API key
 - Save and test the webhook.
+
+Test webhooks from Sonarr (eventType `Test`) perform a Jellyfin reachability + API key check (`/System/Info`) and **do not** trigger a library refresh.
 
 ## Running Locally (without Docker)
 

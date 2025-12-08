@@ -18,6 +18,45 @@ class _HealthLogFilter(logging.Filter):
 logging.getLogger("werkzeug").addFilter(_HealthLogFilter())
 
 
+def _is_test_event(event_type):
+    return isinstance(event_type, str) and event_type.lower() == "test"
+
+
+def _ping_jellyfin(jellyfin_url, jellyfin_api_key):
+    base_url = jellyfin_url.rstrip("/")
+    # First, check if the Jellyfin host is reachable
+    try:
+        requests.get(base_url, timeout=5)
+    except requests.RequestException as exc:
+        logging.warning("Jellyfin ping failed: host unreachable error=%s", exc)
+        return False, f"Failed to reach Jellyfin: {exc}", 502
+
+    # Then, validate the API key against /System/Info
+    headers = {"X-Emby-Token": jellyfin_api_key}
+    ping_url = f"{base_url}/System/Info"
+    try:
+        response = requests.get(ping_url, headers=headers, timeout=5)
+    except requests.RequestException as exc:
+        logging.warning("Jellyfin /System/Info request failed error=%s", exc)
+        return False, f"Failed to reach Jellyfin: {exc}", 502
+
+    if response.status_code == 200:
+        return True, "Jellyfin connection and API key OK", 200
+
+    if response.status_code in (401, 403):
+        logging.warning(
+            "Jellyfin API key rejected status=%s", response.status_code
+        )
+        return (
+            False,
+            f"Jellyfin API key rejected (status {response.status_code})",
+            401,
+        )
+
+    logging.warning("Jellyfin /System/Info failed status=%s", response.status_code)
+    return False, f"Failed to reach Jellyfin (status {response.status_code})", 502
+
+
 def _extract_jellyfin_headers():
     missing = []
     jellyfin_url = request.headers.get("X-Jellyfin-Url")
@@ -58,6 +97,12 @@ def handle_radarr_event():
     if error_response:
         return error_response
 
+    if _is_test_event(event_type):
+        ok, message, status = _ping_jellyfin(jellyfin_url, jellyfin_api_key)
+        if ok:
+            logging.info("Radarr test event: Jellyfin reachable")
+        return message, status
+
     headers = {"X-Emby-Token": jellyfin_api_key}
     refresh_url = f"{jellyfin_url}/Library/Refresh"
     response = requests.post(refresh_url, headers=headers)
@@ -87,6 +132,12 @@ def handle_sonarr_event():
     jellyfin_url, jellyfin_api_key, error_response = _extract_jellyfin_headers()
     if error_response:
         return error_response
+
+    if _is_test_event(event_type):
+        ok, message, status = _ping_jellyfin(jellyfin_url, jellyfin_api_key)
+        if ok:
+            logging.info("Sonarr test event: Jellyfin reachable")
+        return message, status
 
     headers = {"X-Emby-Token": jellyfin_api_key}
     refresh_url = f"{jellyfin_url}/Library/Refresh"
