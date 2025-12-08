@@ -7,4 +7,3 @@ services:
       - "5001:5001"
     # volumes:
     #   - .:/app
-    command: uv run main.py

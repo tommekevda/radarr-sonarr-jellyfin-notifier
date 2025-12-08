@@ -12,11 +12,15 @@ This is a simple Flask application that listens for webhook events from Radarr o
 
 The app runs a Flask server on port `5001` and listens for Radarr and Sonarr webhook events.
 
+### Health check
+
+- `GET /health` returns HTTP 200 with `{"status": "ok"}`.
+
 ## Running with Docker
 
 ### Dockerfile
 
-The Dockerfile uses Python 3.12 slim image, installs dependencies via `uv` package manager, and runs the app with:
+The Dockerfile uses Python 3.12 slim image, installs dependencies via `uv` package manager, defines a container healthcheck on `/health`, and runs the app with:
 
 ```dockerfile
 FROM python:3.12-slim
@@ -48,7 +52,6 @@ services:
       - "5001:5001"
     # volumes:
     #   - .:/app
-    command: uv run main.py
 ```
 
 ## Using Radarr Webhook

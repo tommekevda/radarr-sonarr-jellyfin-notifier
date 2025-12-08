@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, jsonify, request
 import requests
 
 app = Flask(__name__)
@@ -46,6 +46,11 @@ def handle_sonarr_event():
         return "Triggered Jellyfin refresh", 200
     else:
         return f"Failed to trigger Jellyfin ({response.status_code})", 500
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"}), 200
 
 
 if __name__ == "__main__":
