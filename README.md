@@ -7,7 +7,10 @@ This is a simple Flask application that listens for webhook events from Radarr o
 - The app exposes two endpoints: `/radarr-webhook` for Radarr and `/sonarr-webhook` for Sonarr.
 - Radarr/Sonarr should send custom headers: `X-Jellyfin-Url` (your Jellyfin server URL) and `X-Jellyfin-Api-Key` (your Jellyfin API key).
 - Upon receiving a Radarr or Sonarr event, the app triggers a refresh on the Jellyfin library by calling the Jellyfin API.
-- Optionally, you can target specific libraries by sending `X-Jellyfin-Library-Ids` with a comma-separated list of Jellyfin library `ItemId` values. If omitted, all libraries are refreshed.
+- Optionally, you can target specific libraries by sending:
+  - `X-Jellyfin-Library-Ids`: comma-separated Jellyfin library `ItemId` values, **or**
+  - `X-Jellyfin-Collection-Types`: comma-separated library `CollectionType` values (e.g. `movies,tvshows,music,boxsets`), which are resolved to matching libraries.
+  - If both headers are absent, all libraries are refreshed. If both are present, `X-Jellyfin-Library-Ids` takes precedence.
 
 ## Flask Application
 
@@ -21,7 +24,7 @@ The app runs a Flask server on port `5001` and listens for Radarr and Sonarr web
 
 - `GET /libraries` returns JSON with your Jellyfin libraries (name, itemId, collectionType, locations).
 - Provide Jellyfin credentials via headers (`X-Jellyfin-Url`, `X-Jellyfin-Api-Key`) or query params (`?url=<...>&api_key=<...>`).
-- Use this to copy `ItemId`s for the optional `X-Jellyfin-Library-Ids` header.
+- Use this to copy `ItemId`s for the optional `X-Jellyfin-Library-Ids` header or to see available `collectionType` values.
 - Example (browser-friendly URL; `jellyfin-notifier-ip`):
 
 ```
@@ -74,10 +77,11 @@ services:
 - Add the following custom headers:
   - `X-Jellyfin-Url`: Your Jellyfin server URL (e.g. `http://jellyfin.local:8096`)
   - `X-Jellyfin-Api-Key`: Your Jellyfin API key
+  - (Optional) `X-Jellyfin-Collection-Types`: Comma-separated Jellyfin `CollectionType`s (e.g. `movies,tvshows,music,boxsets`) to refresh matching libraries
   - (Optional) `X-Jellyfin-Library-Ids`: Comma-separated Jellyfin library `ItemId`s to refresh (leave out to refresh all libraries)
 - Save and test the webhook.
 
-Test webhooks from Radarr (eventType `Test`) perform a Jellyfin reachability + API key check (`/System/Info`) and list your virtual folders (name, id, paths) in the logs so you can copy `ItemId`s. They **do not** trigger a library refresh.
+Test webhooks from Radarr (eventType `Test`) perform a Jellyfin reachability + API key check (`/System/Info`) and list your virtual folders (name, id, collection type, paths) in the logs so you can copy `ItemId`s. They **do not** trigger a library refresh. If you send `X-Jellyfin-Collection-Types`, invalid types will be reported.
 
 ![Alt text](readme/radarr.png)
 
@@ -89,10 +93,11 @@ Test webhooks from Radarr (eventType `Test`) perform a Jellyfin reachability + A
 - Add the following custom headers:
   - `X-Jellyfin-Url`: Your Jellyfin server URL (e.g. `http://jellyfin.local:8096`)
   - `X-Jellyfin-Api-Key`: Your Jellyfin API key
+  - (Optional) `X-Jellyfin-Collection-Types`: Comma-separated Jellyfin `CollectionType`s (e.g. `movies,tvshows,music,boxsets`) to refresh matching libraries
   - (Optional) `X-Jellyfin-Library-Ids`: Comma-separated Jellyfin library `ItemId`s to refresh (leave out to refresh all libraries)
 - Save and test the webhook.
 
-Test webhooks from Sonarr (eventType `Test`) perform a Jellyfin reachability + API key check (`/System/Info`) and list your virtual folders (name, id, paths) in the logs so you can copy `ItemId`s. They **do not** trigger a library refresh.
+Test webhooks from Sonarr (eventType `Test`) perform a Jellyfin reachability + API key check (`/System/Info`) and list your virtual folders (name, id, collection type, paths) in the logs so you can copy `ItemId`s. They **do not** trigger a library refresh. If you send `X-Jellyfin-Collection-Types`, invalid types will be reported.
 
 ## Running Locally (without Docker)
 

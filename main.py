@@ -129,6 +129,33 @@ def _parse_library_ids_header():
     return ids
 
 
+def _parse_collection_types_header():
+    raw = request.headers.get("X-Jellyfin-Collection-Types", "")
+    if not raw:
+        return []
+    types = [part.strip().lower() for part in raw.split(",") if part.strip()]
+    return types
+
+
+def _select_library_ids_by_collection(folders, requested_types):
+    requested = set(requested_types)
+    available_types = set()
+    selected_ids = []
+
+    for folder in folders:
+        ctype = (folder.get("CollectionType") or "").lower()
+        if not ctype:
+            continue
+        available_types.add(ctype)
+        if ctype in requested:
+            item_id = folder.get("ItemId") or folder.get("Id")
+            if item_id:
+                selected_ids.append(item_id)
+
+    missing = sorted(requested - available_types)
+    return selected_ids, missing, sorted(available_types)
+
+
 def _refresh_jellyfin(jellyfin_url, jellyfin_api_key, library_ids=None):
     base_url = jellyfin_url.rstrip("/")
     headers = {"X-Emby-Token": jellyfin_api_key}
@@ -225,6 +252,9 @@ def handle_radarr_event():
     if error_response:
         return error_response
 
+    library_ids = _parse_library_ids_header()
+    collection_types = _parse_collection_types_header()
+
     if _is_test_event(event_type):
         ok, message, status = _ping_jellyfin(jellyfin_url, jellyfin_api_key)
         if ok:
@@ -232,16 +262,60 @@ def handle_radarr_event():
         else:
             return message, status
 
-        vf_ok, vf_message, vf_status, _ = _fetch_virtual_folders(
+        vf_ok, vf_message, vf_status, folders = _fetch_virtual_folders(
             jellyfin_url, jellyfin_api_key
         )
         if vf_ok:
+            if collection_types:
+                selected_ids, missing_types, available_types = (
+                    _select_library_ids_by_collection(folders, collection_types)
+                )
+                if missing_types:
+                    return (
+                        f"Unknown collection types: {', '.join(missing_types)}. "
+                        f"Available: {', '.join(available_types)}",
+                        400,
+                    )
+                logging.info(
+                    "Radarr test: collection types=%s resolved libraries=%s",
+                    ", ".join(collection_types),
+                    ", ".join(selected_ids) if selected_ids else "(none)",
+                )
             return f"{message}; {vf_message}", 200
         return vf_message, vf_status
 
-    library_ids = _parse_library_ids_header()
     if library_ids:
         logging.info("Radarr refresh targeting libraries=%s", ", ".join(library_ids))
+    elif collection_types:
+        vf_ok, vf_message, vf_status, folders = _fetch_virtual_folders(
+            jellyfin_url, jellyfin_api_key
+        )
+        if not vf_ok:
+            return vf_message, vf_status
+        library_ids, missing_types, available_types = (
+            _select_library_ids_by_collection(folders, collection_types)
+        )
+        if missing_types:
+            return (
+                f"Unknown collection types: {', '.join(missing_types)}. "
+                f"Available: {', '.join(available_types)}",
+                400,
+            )
+        if library_ids:
+            logging.info(
+                "Radarr refresh targeting collection types=%s libraries=%s",
+                ", ".join(collection_types),
+                ", ".join(library_ids),
+            )
+        else:
+            logging.warning(
+                "Radarr refresh: no libraries matched collection types=%s",
+                ", ".join(collection_types),
+            )
+            return (
+                f"No libraries matched collection types: {', '.join(collection_types)}",
+                400,
+            )
 
     refresh_ok, refresh_message, refresh_status = _refresh_jellyfin(
         jellyfin_url, jellyfin_api_key, library_ids=library_ids or None
@@ -269,6 +343,9 @@ def handle_sonarr_event():
     if error_response:
         return error_response
 
+    library_ids = _parse_library_ids_header()
+    collection_types = _parse_collection_types_header()
+
     if _is_test_event(event_type):
         ok, message, status = _ping_jellyfin(jellyfin_url, jellyfin_api_key)
         if ok:
@@ -276,12 +353,65 @@ def handle_sonarr_event():
         else:
             return message, status
 
-        vf_ok, vf_message, vf_status, _ = _fetch_virtual_folders(
+        vf_ok, vf_message, vf_status, folders = _fetch_virtual_folders(
             jellyfin_url, jellyfin_api_key
         )
         if vf_ok:
+            if collection_types:
+                selected_ids, missing_types, available_types = (
+                    _select_library_ids_by_collection(folders, collection_types)
+                )
+                if missing_types:
+                    return (
+                        f"Unknown collection types: {', '.join(missing_types)}. "
+                        f"Available: {', '.join(available_types)}",
+                        400,
+                    )
+                logging.info(
+                    "Sonarr test: collection types=%s resolved libraries=%s",
+                    ", ".join(collection_types),
+                    ", ".join(selected_ids) if selected_ids else "(none)",
+                )
             return f"{message}; {vf_message}", 200
         return vf_message, vf_status
+
+    if library_ids:
+        logging.info("Sonarr refresh targeting libraries=%s", ", ".join(library_ids))
+    elif collection_types:
+        vf_ok, vf_message, vf_status, folders = _fetch_virtual_folders(
+            jellyfin_url, jellyfin_api_key
+        )
+        if not vf_ok:
+            return vf_message, vf_status
+        library_ids, missing_types, available_types = (
+            _select_library_ids_by_collection(folders, collection_types)
+        )
+        if missing_types:
+            return (
+                f"Unknown collection types: {', '.join(missing_types)}. "
+                f"Available: {', '.join(available_types)}",
+                400,
+            )
+        if library_ids:
+            logging.info(
+                "Sonarr refresh targeting collection types=%s libraries=%s",
+                ", ".join(collection_types),
+                ", ".join(library_ids),
+            )
+        else:
+            logging.warning(
+                "Sonarr refresh: no libraries matched collection types=%s",
+                ", ".join(collection_types),
+            )
+            return (
+                f"No libraries matched collection types: {', '.join(collection_types)}",
+                400,
+            )
+
+    refresh_ok, refresh_message, refresh_status = _refresh_jellyfin(
+        jellyfin_url, jellyfin_api_key, library_ids=library_ids or None
+    )
+    return refresh_message, refresh_status
 
 
 def _extract_jellyfin_credentials_for_list():
@@ -298,15 +428,6 @@ def _extract_jellyfin_credentials_for_list():
         joined = ", ".join(missing)
         return None, None, (f"Missing credentials: {joined}", 400)
     return jellyfin_url, jellyfin_api_key, None
-
-    library_ids = _parse_library_ids_header()
-    if library_ids:
-        logging.info("Sonarr refresh targeting libraries=%s", ", ".join(library_ids))
-
-    refresh_ok, refresh_message, refresh_status = _refresh_jellyfin(
-        jellyfin_url, jellyfin_api_key, library_ids=library_ids or None
-    )
-    return refresh_message, refresh_status
 
 
 @app.route("/health", methods=["GET"])
