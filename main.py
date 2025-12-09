@@ -86,7 +86,7 @@ def handle_radarr_event():
     movie_path = movie_file.get("relativePath") or movie_file.get("path")
 
     logging.info(
-        "Radarr event=%s title=%s year=%s path=%s",
+        "Radarr event\n  type=%s\n  title=%s\n  year=%s\n  path=%s",
         event_type,
         movie_title,
         movie_year,
@@ -123,7 +123,7 @@ def handle_sonarr_event():
     episode_path = episode_file.get("relativePath") or episode_file.get("path")
 
     logging.info(
-        "Sonarr event=%s series=%s episode_path=%s",
+        "Sonarr event\n  type=%s\n  series=%s\n  episode_path=%s",
         event_type,
         series_title,
         episode_path,
