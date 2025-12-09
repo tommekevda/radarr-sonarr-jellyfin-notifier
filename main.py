@@ -104,15 +104,17 @@ def _fetch_virtual_folders(jellyfin_url, jellyfin_api_key):
     for folder in folders:
         name = folder.get("Name")
         item_id = folder.get("ItemId") or folder.get("Id")
+        collection_type = folder.get("CollectionType")
         locations = folder.get("Locations") or []
         path_infos = folder.get("LibraryOptions", {}).get("PathInfos") or []
         if not locations and path_infos:
             locations = [p.get("Path") for p in path_infos if p.get("Path")]
         location_str = ", ".join([loc for loc in locations if loc]) or "-"
         logging.info(
-            "Virtual folder\n  name=%s\n  item_id=%s\n  locations=%s",
+            "Virtual folder\n  name=%s\n  item_id=%s\n  collection_type=%s\n  locations=%s",
             name,
             item_id,
+            collection_type,
             location_str,
         )
 
@@ -330,12 +332,18 @@ def list_libraries():
     for folder in folders:
         name = folder.get("Name")
         item_id = folder.get("ItemId") or folder.get("Id")
+        collection_type = folder.get("CollectionType")
         locations = folder.get("Locations") or []
         path_infos = folder.get("LibraryOptions", {}).get("PathInfos") or []
         if not locations and path_infos:
             locations = [p.get("Path") for p in path_infos if p.get("Path")]
         libraries.append(
-            {"name": name, "itemId": item_id, "locations": [p for p in locations if p]}
+            {
+                "name": name,
+                "itemId": item_id,
+                "collectionType": collection_type,
+                "locations": [p for p in locations if p],
+            }
         )
 
     payload = {"libraries": libraries}

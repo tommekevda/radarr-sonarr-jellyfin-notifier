@@ -19,7 +19,7 @@ The app runs a Flask server on port `5001` and listens for Radarr and Sonarr web
 
 ### List libraries
 
-- `GET /libraries` returns JSON with your Jellyfin libraries (name, itemId, locations).
+- `GET /libraries` returns JSON with your Jellyfin libraries (name, itemId, collectionType, locations).
 - Provide Jellyfin credentials via headers (`X-Jellyfin-Url`, `X-Jellyfin-Api-Key`) or query params (`?url=<...>&api_key=<...>`).
 - Use this to copy `ItemId`s for the optional `X-Jellyfin-Library-Ids` header.
 - Example (browser-friendly URL; `jellyfin-notifier-ip`):
