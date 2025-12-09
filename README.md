@@ -110,3 +110,11 @@ uv run main.py
 ```
 
 The app will listen on port 5001.
+
+### Running tests
+
+- Run all tests with:
+
+```bash
+./run_tests.sh
+```
