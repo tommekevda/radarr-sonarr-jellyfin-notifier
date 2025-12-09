@@ -1,3 +1,4 @@
+import json
 import logging
 from flask import Flask, jsonify, request
 import requests
@@ -66,7 +67,7 @@ def _fetch_virtual_folders(jellyfin_url, jellyfin_api_key):
         response = requests.get(url, headers=headers, params=params, timeout=5)
     except requests.RequestException as exc:
         logging.warning("Jellyfin virtual folders request failed error=%s", exc)
-        return False, f"Failed to fetch Jellyfin virtual folders: {exc}", 502
+        return False, f"Failed to fetch Jellyfin virtual folders: {exc}", 502, None
 
     if response.status_code != 200:
         logging.warning(
@@ -77,18 +78,20 @@ def _fetch_virtual_folders(jellyfin_url, jellyfin_api_key):
                 False,
                 f"Jellyfin API key rejected for virtual folders (status {response.status_code})",
                 401,
+                None,
             )
         return (
             False,
             f"Failed to fetch Jellyfin virtual folders (status {response.status_code})",
             502,
+            None,
         )
 
     try:
         folders = response.json()
     except ValueError as exc:
         logging.warning("Jellyfin virtual folders parse failed error=%s", exc)
-        return False, "Failed to parse Jellyfin virtual folders response", 502
+        return False, "Failed to parse Jellyfin virtual folders response", 502, None
 
     if isinstance(folders, dict):
         folders = [folders]
@@ -113,7 +116,71 @@ def _fetch_virtual_folders(jellyfin_url, jellyfin_api_key):
             location_str,
         )
 
-    return True, "Jellyfin virtual folders listed", 200
+    return True, "Jellyfin virtual folders listed", 200, folders
+
+
+def _parse_library_ids_header():
+    raw = request.headers.get("X-Jellyfin-Library-Ids", "")
+    if not raw:
+        return []
+    ids = [part.strip() for part in raw.split(",") if part.strip()]
+    return ids
+
+
+def _refresh_jellyfin(jellyfin_url, jellyfin_api_key, library_ids=None):
+    base_url = jellyfin_url.rstrip("/")
+    headers = {"X-Emby-Token": jellyfin_api_key}
+
+    if library_ids:
+        failures = []
+        for lib_id in library_ids:
+            refresh_url = f"{base_url}/Items/{lib_id}/Refresh"
+            try:
+                response = requests.post(
+                    refresh_url,
+                    headers=headers,
+                    params={"Recursive": "true"},
+                    timeout=10,
+                )
+            except requests.RequestException as exc:
+                logging.warning(
+                    "Jellyfin refresh failed for library_id=%s error=%s", lib_id, exc
+                )
+                failures.append(f"{lib_id} (error)")
+                continue
+
+            if response.status_code == 204:
+                logging.info(
+                    "Triggered Jellyfin refresh for library_id=%s", lib_id
+                )
+            else:
+                logging.warning(
+                    "Jellyfin refresh failed for library_id=%s status=%s",
+                    lib_id,
+                    response.status_code,
+                )
+                failures.append(f"{lib_id} (status {response.status_code})")
+
+        if failures:
+            return (
+                False,
+                f"Failed to refresh libraries: {', '.join(failures)}",
+                500,
+            )
+        return True, "Triggered Jellyfin refresh for selected libraries", 200
+
+    refresh_url = f"{base_url}/Library/Refresh"
+    try:
+        response = requests.post(refresh_url, headers=headers, timeout=10)
+    except requests.RequestException as exc:
+        logging.warning("Jellyfin refresh request failed error=%s", exc)
+        return False, f"Failed to trigger Jellyfin: {exc}", 502
+
+    if response.status_code == 204:
+        return True, "Triggered Jellyfin refresh", 200
+
+    logging.warning("Jellyfin refresh failed status=%s", response.status_code)
+    return False, f"Failed to trigger Jellyfin ({response.status_code})", 500
 
 
 def _extract_jellyfin_headers():
@@ -163,21 +230,21 @@ def handle_radarr_event():
         else:
             return message, status
 
-        vf_ok, vf_message, vf_status = _fetch_virtual_folders(
+        vf_ok, vf_message, vf_status, _ = _fetch_virtual_folders(
             jellyfin_url, jellyfin_api_key
         )
         if vf_ok:
             return f"{message}; {vf_message}", 200
         return vf_message, vf_status
 
-    headers = {"X-Emby-Token": jellyfin_api_key}
-    refresh_url = f"{jellyfin_url}/Library/Refresh"
-    response = requests.post(refresh_url, headers=headers)
+    library_ids = _parse_library_ids_header()
+    if library_ids:
+        logging.info("Radarr refresh targeting libraries=%s", ", ".join(library_ids))
 
-    if response.status_code == 204:
-        return "Triggered Jellyfin refresh", 200
-    else:
-        return f"Failed to trigger Jellyfin ({response.status_code})", 500
+    refresh_ok, refresh_message, refresh_status = _refresh_jellyfin(
+        jellyfin_url, jellyfin_api_key, library_ids=library_ids or None
+    )
+    return refresh_message, refresh_status
 
 
 @app.route("/sonarr-webhook", methods=["POST"])
@@ -207,26 +274,74 @@ def handle_sonarr_event():
         else:
             return message, status
 
-        vf_ok, vf_message, vf_status = _fetch_virtual_folders(
+        vf_ok, vf_message, vf_status, _ = _fetch_virtual_folders(
             jellyfin_url, jellyfin_api_key
         )
         if vf_ok:
             return f"{message}; {vf_message}", 200
         return vf_message, vf_status
 
-    headers = {"X-Emby-Token": jellyfin_api_key}
-    refresh_url = f"{jellyfin_url}/Library/Refresh"
-    response = requests.post(refresh_url, headers=headers)
 
-    if response.status_code == 204:
-        return "Triggered Jellyfin refresh", 200
-    else:
-        return f"Failed to trigger Jellyfin ({response.status_code})", 500
+def _extract_jellyfin_credentials_for_list():
+    jellyfin_url = request.headers.get("X-Jellyfin-Url") or request.args.get("url")
+    jellyfin_api_key = request.headers.get("X-Jellyfin-Api-Key") or request.args.get(
+        "api_key"
+    )
+    missing = []
+    if not jellyfin_url:
+        missing.append("X-Jellyfin-Url or url query param")
+    if not jellyfin_api_key:
+        missing.append("X-Jellyfin-Api-Key or api_key query param")
+    if missing:
+        joined = ", ".join(missing)
+        return None, None, (f"Missing credentials: {joined}", 400)
+    return jellyfin_url, jellyfin_api_key, None
+
+    library_ids = _parse_library_ids_header()
+    if library_ids:
+        logging.info("Sonarr refresh targeting libraries=%s", ", ".join(library_ids))
+
+    refresh_ok, refresh_message, refresh_status = _refresh_jellyfin(
+        jellyfin_url, jellyfin_api_key, library_ids=library_ids or None
+    )
+    return refresh_message, refresh_status
 
 
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok"}), 200
+
+
+@app.route("/libraries", methods=["GET"])
+def list_libraries():
+    jellyfin_url, jellyfin_api_key, error_response = (
+        _extract_jellyfin_credentials_for_list()
+    )
+    if error_response:
+        return error_response
+
+    ok, message, status, folders = _fetch_virtual_folders(
+        jellyfin_url, jellyfin_api_key
+    )
+    if not ok:
+        return message, status
+
+    libraries = []
+    for folder in folders:
+        name = folder.get("Name")
+        item_id = folder.get("ItemId") or folder.get("Id")
+        locations = folder.get("Locations") or []
+        path_infos = folder.get("LibraryOptions", {}).get("PathInfos") or []
+        if not locations and path_infos:
+            locations = [p.get("Path") for p in path_infos if p.get("Path")]
+        libraries.append(
+            {"name": name, "itemId": item_id, "locations": [p for p in locations if p]}
+        )
+
+    payload = {"libraries": libraries}
+    return app.response_class(
+        json.dumps(payload, indent=2), status=200, mimetype="application/json"
+    )
 
 
 if __name__ == "__main__":
