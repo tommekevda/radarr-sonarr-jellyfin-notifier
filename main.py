@@ -57,6 +57,65 @@ def _ping_jellyfin(jellyfin_url, jellyfin_api_key):
     return False, f"Failed to reach Jellyfin (status {response.status_code})", 502
 
 
+def _fetch_virtual_folders(jellyfin_url, jellyfin_api_key):
+    base_url = jellyfin_url.rstrip("/")
+    url = f"{base_url}/Library/VirtualFolders"
+    headers = {"X-Emby-Token": jellyfin_api_key}
+    params = {"api_key": jellyfin_api_key}
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=5)
+    except requests.RequestException as exc:
+        logging.warning("Jellyfin virtual folders request failed error=%s", exc)
+        return False, f"Failed to fetch Jellyfin virtual folders: {exc}", 502
+
+    if response.status_code != 200:
+        logging.warning(
+            "Jellyfin virtual folders request failed status=%s", response.status_code
+        )
+        if response.status_code in (401, 403):
+            return (
+                False,
+                f"Jellyfin API key rejected for virtual folders (status {response.status_code})",
+                401,
+            )
+        return (
+            False,
+            f"Failed to fetch Jellyfin virtual folders (status {response.status_code})",
+            502,
+        )
+
+    try:
+        folders = response.json()
+    except ValueError as exc:
+        logging.warning("Jellyfin virtual folders parse failed error=%s", exc)
+        return False, "Failed to parse Jellyfin virtual folders response", 502
+
+    if isinstance(folders, dict):
+        folders = [folders]
+
+    folders = sorted(
+        folders, key=lambda f: (str(f.get("Name") or "").lower(), f.get("ItemId") or "")
+    )
+
+    logging.info("Jellyfin virtual folders count=%s", len(folders))
+    for folder in folders:
+        name = folder.get("Name")
+        item_id = folder.get("ItemId") or folder.get("Id")
+        locations = folder.get("Locations") or []
+        path_infos = folder.get("LibraryOptions", {}).get("PathInfos") or []
+        if not locations and path_infos:
+            locations = [p.get("Path") for p in path_infos if p.get("Path")]
+        location_str = ", ".join([loc for loc in locations if loc]) or "-"
+        logging.info(
+            "Virtual folder\n  name=%s\n  item_id=%s\n  locations=%s",
+            name,
+            item_id,
+            location_str,
+        )
+
+    return True, "Jellyfin virtual folders listed", 200
+
+
 def _extract_jellyfin_headers():
     missing = []
     jellyfin_url = request.headers.get("X-Jellyfin-Url")
@@ -101,7 +160,15 @@ def handle_radarr_event():
         ok, message, status = _ping_jellyfin(jellyfin_url, jellyfin_api_key)
         if ok:
             logging.info("Radarr test event: Jellyfin reachable")
-        return message, status
+        else:
+            return message, status
+
+        vf_ok, vf_message, vf_status = _fetch_virtual_folders(
+            jellyfin_url, jellyfin_api_key
+        )
+        if vf_ok:
+            return f"{message}; {vf_message}", 200
+        return vf_message, vf_status
 
     headers = {"X-Emby-Token": jellyfin_api_key}
     refresh_url = f"{jellyfin_url}/Library/Refresh"
@@ -137,7 +204,15 @@ def handle_sonarr_event():
         ok, message, status = _ping_jellyfin(jellyfin_url, jellyfin_api_key)
         if ok:
             logging.info("Sonarr test event: Jellyfin reachable")
-        return message, status
+        else:
+            return message, status
+
+        vf_ok, vf_message, vf_status = _fetch_virtual_folders(
+            jellyfin_url, jellyfin_api_key
+        )
+        if vf_ok:
+            return f"{message}; {vf_message}", 200
+        return vf_message, vf_status
 
     headers = {"X-Emby-Token": jellyfin_api_key}
     refresh_url = f"{jellyfin_url}/Library/Refresh"

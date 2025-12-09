@@ -64,7 +64,7 @@ services:
   - `X-Jellyfin-Api-Key`: Your Jellyfin API key
 - Save and test the webhook.
 
-Test webhooks from Radarr (eventType `Test`) perform a Jellyfin reachability + API key check (`/System/Info`) and **do not** trigger a library refresh.
+Test webhooks from Radarr (eventType `Test`) perform a Jellyfin reachability + API key check (`/System/Info`) and list your virtual folders (name, id, paths) in the logs. They **do not** trigger a library refresh.
 
 ![Alt text](readme/radarr.png)
 
@@ -78,7 +78,7 @@ Test webhooks from Radarr (eventType `Test`) perform a Jellyfin reachability + A
   - `X-Jellyfin-Api-Key`: Your Jellyfin API key
 - Save and test the webhook.
 
-Test webhooks from Sonarr (eventType `Test`) perform a Jellyfin reachability + API key check (`/System/Info`) and **do not** trigger a library refresh.
+Test webhooks from Sonarr (eventType `Test`) perform a Jellyfin reachability + API key check (`/System/Info`) and list your virtual folders (name, id, paths) in the logs. They **do not** trigger a library refresh.
 
 ## Running Locally (without Docker)
 
