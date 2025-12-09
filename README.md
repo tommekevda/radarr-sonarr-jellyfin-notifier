@@ -55,7 +55,7 @@ CMD ["uv", "run", "main.py"]
 
 ### docker-compose.yml
 
-The docker-compose file builds the Docker image named `radarr-jellyfin-notifier`, maps port 5001, and mounts the local directory for easy development:
+The docker-compose file builds the Docker image named `radarr-jellyfin-notifier` and maps port 5001:
 
 ```yaml
 services:
@@ -65,8 +65,6 @@ services:
     restart: unless-stopped
     ports:
       - "5001:5001"
-    # volumes:
-    #   - .:/app
 ```
 
 ## Using Radarr Webhook
