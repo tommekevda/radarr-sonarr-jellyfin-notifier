@@ -156,6 +156,17 @@ def _select_library_ids_by_collection(folders, requested_types):
     return selected_ids, missing, sorted(available_types)
 
 
+def _merge_ids(*lists_of_ids):
+    seen = set()
+    merged = []
+    for ids in lists_of_ids:
+        for value in ids or []:
+            if value and value not in seen:
+                merged.append(value)
+                seen.add(value)
+    return merged
+
+
 def _refresh_jellyfin(jellyfin_url, jellyfin_api_key, library_ids=None):
     base_url = jellyfin_url.rstrip("/")
     headers = {"X-Emby-Token": jellyfin_api_key}
@@ -266,6 +277,7 @@ def handle_radarr_event():
             jellyfin_url, jellyfin_api_key
         )
         if vf_ok:
+            selected_ids = []
             if collection_types:
                 selected_ids, missing_types, available_types = (
                     _select_library_ids_by_collection(folders, collection_types)
@@ -276,6 +288,13 @@ def handle_radarr_event():
                         f"Available: {', '.join(available_types)}",
                         400,
                     )
+            combined_ids = _merge_ids(library_ids, selected_ids)
+            if combined_ids:
+                logging.info(
+                    "Radarr test: libraries=%s",
+                    ", ".join(combined_ids),
+                )
+            if collection_types:
                 logging.info(
                     "Radarr test: collection types=%s resolved libraries=%s",
                     ", ".join(collection_types),
@@ -284,15 +303,14 @@ def handle_radarr_event():
             return f"{message}; {vf_message}", 200
         return vf_message, vf_status
 
-    if library_ids:
-        logging.info("Radarr refresh targeting libraries=%s", ", ".join(library_ids))
-    elif collection_types:
+    resolved_ids = []
+    if collection_types:
         vf_ok, vf_message, vf_status, folders = _fetch_virtual_folders(
             jellyfin_url, jellyfin_api_key
         )
         if not vf_ok:
             return vf_message, vf_status
-        library_ids, missing_types, available_types = (
+        resolved_ids, missing_types, available_types = (
             _select_library_ids_by_collection(folders, collection_types)
         )
         if missing_types:
@@ -301,13 +319,7 @@ def handle_radarr_event():
                 f"Available: {', '.join(available_types)}",
                 400,
             )
-        if library_ids:
-            logging.info(
-                "Radarr refresh targeting collection types=%s libraries=%s",
-                ", ".join(collection_types),
-                ", ".join(library_ids),
-            )
-        else:
+        if not resolved_ids:
             logging.warning(
                 "Radarr refresh: no libraries matched collection types=%s",
                 ", ".join(collection_types),
@@ -317,8 +329,12 @@ def handle_radarr_event():
                 400,
             )
 
+    combined_ids = _merge_ids(library_ids, resolved_ids)
+    if combined_ids:
+        logging.info("Radarr refresh targeting libraries=%s", ", ".join(combined_ids))
+
     refresh_ok, refresh_message, refresh_status = _refresh_jellyfin(
-        jellyfin_url, jellyfin_api_key, library_ids=library_ids or None
+        jellyfin_url, jellyfin_api_key, library_ids=combined_ids or None
     )
     return refresh_message, refresh_status
 
@@ -357,6 +373,7 @@ def handle_sonarr_event():
             jellyfin_url, jellyfin_api_key
         )
         if vf_ok:
+            selected_ids = []
             if collection_types:
                 selected_ids, missing_types, available_types = (
                     _select_library_ids_by_collection(folders, collection_types)
@@ -367,6 +384,13 @@ def handle_sonarr_event():
                         f"Available: {', '.join(available_types)}",
                         400,
                     )
+            combined_ids = _merge_ids(library_ids, selected_ids)
+            if combined_ids:
+                logging.info(
+                    "Sonarr test: libraries=%s",
+                    ", ".join(combined_ids),
+                )
+            if collection_types:
                 logging.info(
                     "Sonarr test: collection types=%s resolved libraries=%s",
                     ", ".join(collection_types),
@@ -375,15 +399,14 @@ def handle_sonarr_event():
             return f"{message}; {vf_message}", 200
         return vf_message, vf_status
 
-    if library_ids:
-        logging.info("Sonarr refresh targeting libraries=%s", ", ".join(library_ids))
-    elif collection_types:
+    resolved_ids = []
+    if collection_types:
         vf_ok, vf_message, vf_status, folders = _fetch_virtual_folders(
             jellyfin_url, jellyfin_api_key
         )
         if not vf_ok:
             return vf_message, vf_status
-        library_ids, missing_types, available_types = (
+        resolved_ids, missing_types, available_types = (
             _select_library_ids_by_collection(folders, collection_types)
         )
         if missing_types:
@@ -392,13 +415,7 @@ def handle_sonarr_event():
                 f"Available: {', '.join(available_types)}",
                 400,
             )
-        if library_ids:
-            logging.info(
-                "Sonarr refresh targeting collection types=%s libraries=%s",
-                ", ".join(collection_types),
-                ", ".join(library_ids),
-            )
-        else:
+        if not resolved_ids:
             logging.warning(
                 "Sonarr refresh: no libraries matched collection types=%s",
                 ", ".join(collection_types),
@@ -408,8 +425,12 @@ def handle_sonarr_event():
                 400,
             )
 
+    combined_ids = _merge_ids(library_ids, resolved_ids)
+    if combined_ids:
+        logging.info("Sonarr refresh targeting libraries=%s", ", ".join(combined_ids))
+
     refresh_ok, refresh_message, refresh_status = _refresh_jellyfin(
-        jellyfin_url, jellyfin_api_key, library_ids=library_ids or None
+        jellyfin_url, jellyfin_api_key, library_ids=combined_ids or None
     )
     return refresh_message, refresh_status
 

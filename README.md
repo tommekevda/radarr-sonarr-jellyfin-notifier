@@ -8,9 +8,9 @@ This is a simple Flask application that listens for webhook events from Radarr o
 - Radarr/Sonarr should send custom headers: `X-Jellyfin-Url` (your Jellyfin server URL) and `X-Jellyfin-Api-Key` (your Jellyfin API key).
 - Upon receiving a Radarr or Sonarr event, the app triggers a refresh on the Jellyfin library by calling the Jellyfin API.
 - Optionally, you can target specific libraries by sending:
-  - `X-Jellyfin-Library-Ids`: comma-separated Jellyfin library `ItemId` values, **or**
+  - `X-Jellyfin-Library-Ids`: comma-separated Jellyfin library `ItemId` values.
   - `X-Jellyfin-Collection-Types`: comma-separated library `CollectionType` values (e.g. `movies,tvshows,music,boxsets`), which are resolved to matching libraries.
-  - If both headers are absent, all libraries are refreshed. If both are present, `X-Jellyfin-Library-Ids` takes precedence.
+  - You can combine both headers; duplicates are ignored. If both headers are absent, all libraries are refreshed.
 
 ## Flask Application
 
