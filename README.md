@@ -97,3 +97,11 @@ The app will listen on port 5001.
 ```bash
 ./run_tests.sh
 ```
+
+## License
+
+This project is released under the [CC0 1.0 Universal](LICENSE) public domain dedication.
+
+To the extent possible under law, I have waived all copyright and related rights in this work. You may use, copy, modify, and distribute the code for any purpose, including commercial use, without asking permission.
+
+The code is provided “as is”, without warranty of any kind. Use it entirely at your own risk.
