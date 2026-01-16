@@ -1,4 +1,5 @@
 import logging
+import os
 
 
 class HealthLogFilter(logging.Filter):
@@ -11,5 +12,15 @@ class HealthLogFilter(logging.Filter):
 
 
 def configure_logging() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    level = _get_log_level()
+    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(message)s")
     logging.getLogger("werkzeug").addFilter(HealthLogFilter())
+
+
+def _get_log_level() -> int:
+    raw = os.getenv("JELLYFIN_NOTIFIER_LOG_LEVEL", "INFO").strip()
+    if not raw:
+        return logging.INFO
+    if raw.isdigit():
+        return int(raw)
+    return getattr(logging, raw.upper(), logging.INFO)

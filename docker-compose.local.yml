@@ -1,9 +1,7 @@
 services:
   notifier:
-    build: https://github.com/tommekevda/radarr-sonarr-jellyfin-notifier.git
+    build: .
     container_name: radarr-sonarr-jellyfin-notifier
     restart: unless-stopped
-    tmpfs:
-      - /tmp
     ports:
       - "5001:5001"
