@@ -163,7 +163,7 @@ wheels = [
 
 [[package]]
 name = "radarr-sonarr-jellyfin-notifier"
-version = "0.2.2"
+version = "0.3.0"
 source = { virtual = "." }
 dependencies = [
     { name = "flask" },

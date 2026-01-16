@@ -1,6 +1,6 @@
 [project]
 name = "radarr-sonarr-jellyfin-notifier"
-version = "0.2.2"
+version = "0.3.0"
 description = "Webhook listener for Radarr or Sonarr that triggers a Jellyfin library refresh"
 readme = "README.md"
 requires-python = ">=3.12"
