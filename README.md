@@ -41,7 +41,7 @@ The docker-compose file builds the image from GitHub and maps port 5001:
 
 ```yaml
 services:
-  notifier:
+  radarr-sonarr-jellyfin-notifier:
     build: https://github.com/tommekevda/radarr-sonarr-jellyfin-notifier.git
     container_name: radarr-sonarr-jellyfin-notifier
     restart: unless-stopped

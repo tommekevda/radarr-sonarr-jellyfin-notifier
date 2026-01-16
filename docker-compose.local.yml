@@ -1,5 +1,5 @@
 services:
-  notifier:
+  radarr-sonarr-jellyfin-notifier:
     build: .
     container_name: radarr-sonarr-jellyfin-notifier
     restart: unless-stopped

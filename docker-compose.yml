@@ -1,5 +1,5 @@
 services:
-  notifier:
+  radarr-sonarr-jellyfin-notifier:
     build: https://github.com/tommekevda/radarr-sonarr-jellyfin-notifier.git
     container_name: radarr-sonarr-jellyfin-notifier
     restart: unless-stopped
