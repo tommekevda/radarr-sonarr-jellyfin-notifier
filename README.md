@@ -37,17 +37,30 @@ http://<jellyfin-notifier-ip>:5001/libraries?url=http://jellyfin.local:8096&api_
 
 ### docker-compose.yml
 
-The docker-compose file builds the Docker image named `radarr-sonarr-jellyfin-notifier` and maps port 5001:
+The docker-compose file builds the image from GitHub and maps port 5001:
 
 ```yaml
 services:
-  radarr-sonarr-jellyfin-notifier:
+  notifier:
     build: https://github.com/tommekevda/radarr-sonarr-jellyfin-notifier.git
     container_name: radarr-sonarr-jellyfin-notifier
     restart: unless-stopped
+    environment:
+      # JELLYFIN_API_KEY: ""                    # Jellyfin API key (optional if headers used)
+      # JELLYFIN_URL: ""                        # Jellyfin base URL (optional if headers used)
+      # JELLYFIN_NOTIFIER_ALLOWLIST: ""         # Comma-separated IPs/CIDRs
+      JELLYFIN_NOTIFIER_LOG_LEVEL: "INFO"                     # Log level
+      JELLYFIN_NOTIFIER_PORT: "5001"                          # Bind port
+      JELLYFIN_NOTIFIER_RATE_LIMIT_PER_MINUTE: "0"            # Per-IP limit (0=off)
+      JELLYFIN_NOTIFIER_REFRESH_DEBOUNCE_SECONDS: "10"        # Queue debounce
+      JELLYFIN_NOTIFIER_REFRESH_MAX_WAIT_SECONDS: "60"        # Max queue delay
+    tmpfs:
+      - /tmp
     ports:
       - "5001:5001"
 ```
+
+For local builds, use `docker-compose.local.yml` (it builds from `.`).
 
 ## Configuration
 
@@ -55,9 +68,11 @@ services:
 - `JELLYFIN_NOTIFIER_PORT` or `PORT`: Port to bind (default `5001`).
 - `JELLYFIN_NOTIFIER_LOG_LEVEL`: Log level (default `INFO`).
 - `JELLYFIN_NOTIFIER_RATE_LIMIT_PER_MINUTE`: Per-IP request limit for `/radarr-webhook`, `/sonarr-webhook`, and `/libraries` (default `0`, disabled).
-- `JELLYFIN_NOTIFIER_REFRESH_DEBOUNCE_SECONDS`: Buffer window for refresh coalescing (default `10`). Set to `0` to disable buffering and refresh immediately.
-- `JELLYFIN_NOTIFIER_REFRESH_MAX_WAIT_SECONDS`: Maximum time to delay a refresh while coalescing (default `60`). Set to `0` to wait indefinitely.
+- `JELLYFIN_NOTIFIER_REFRESH_DEBOUNCE_SECONDS`: Buffer window after the *last* event before a refresh runs (default `10`). Set to `0` to disable buffering and refresh immediately.
+- `JELLYFIN_NOTIFIER_REFRESH_MAX_WAIT_SECONDS`: Hard cap from the *first* event to the refresh (default `60`). Set to `0` to remove the cap, meaning refresh waits until there is a quiet period of `JELLYFIN_NOTIFIER_REFRESH_DEBOUNCE_SECONDS` (continuous events can delay it indefinitely).
 - `JELLYFIN_NOTIFIER_ALLOWLIST`: Comma-separated IPs/CIDRs allowed to access the webhook endpoints and `/libraries` (empty disables). Uses `request.remote_addr` so allowlist the proxy IP if you run behind one. The `/health` endpoint is not restricted.
+
+Example: debounce `10` + max wait `60` means “refresh 10s after the last event, but no later than 60s after the first event.”
 
 ## Using Radarr Webhook
 
