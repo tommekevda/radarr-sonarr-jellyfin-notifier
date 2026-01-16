@@ -4,7 +4,8 @@ This is a simple Flask application that listens for webhook events from Radarr o
 
 ## How it works
 
-- The app exposes two endpoints: `/radarr-webhook` for Radarr and `/sonarr-webhook` for Sonarr.
+- The app exposes webhook endpoints: `/radarr-webhook` for Radarr and `/sonarr-webhook` for Sonarr.
+- Helper endpoints `/health` and `/libraries` are available for status checks and library discovery.
 - Radarr/Sonarr should send custom headers: `X-Jellyfin-Url` (your Jellyfin server URL) and `X-Jellyfin-Api-Key` (your Jellyfin API key).
 - Upon receiving a Radarr or Sonarr event, the app triggers a refresh on the Jellyfin library by calling the Jellyfin API.
 - Optionally, you can target specific libraries by sending:
@@ -33,35 +34,15 @@ http://<jellyfin-notifier-ip>:5001/libraries?url=http://jellyfin.local:8096&api_
 
 ## Running with Docker
 
-### Dockerfile
-
-The Dockerfile uses Python 3.12 slim image, installs dependencies via `uv` package manager, defines a container healthcheck on `/health`, and runs the app with:
-
-```dockerfile
-FROM python:3.12-slim
-
-WORKDIR /app
-
-COPY uv.lock .
-
-RUN pip install --no-cache-dir uv && uv install
-
-COPY . .
-
-EXPOSE 5001
-
-CMD ["uv", "run", "main.py"]
-```
-
 ### docker-compose.yml
 
-The docker-compose file builds the Docker image named `radarr-jellyfin-notifier` and maps port 5001:
+The docker-compose file builds the Docker image named `radarr-sonarr-jellyfin-notifier` and maps port 5001:
 
 ```yaml
 services:
-  radarr-jellyfin-notifier:
-    build: https://github.com/tommekevda/radarr-jellyfin-notifier.git
-    container_name: radarr-jellyfin-notifier
+  radarr-sonarr-jellyfin-notifier:
+    build: https://github.com/tommekevda/radarr-sonarr-jellyfin-notifier.git
+    container_name: radarr-sonarr-jellyfin-notifier
     restart: unless-stopped
     ports:
       - "5001:5001"
