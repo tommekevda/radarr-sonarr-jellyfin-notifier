@@ -1,0 +1,80 @@
+name: Build & Push Docker image (GHCR)
+
+on:
+  push:
+    branches: ["master"]
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether to build
+        id: guard
+        shell: bash
+        run: |
+          # Default: build for branch pushes
+          BUILD="true"
+
+          # For tag pushes: only build if tag commit is reachable from origin/master
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            git fetch origin master --prune
+            if git merge-base --is-ancestor "$GITHUB_SHA" "origin/master"; then
+              BUILD="true"
+            else
+              BUILD="false"
+            fi
+          fi
+
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+
+      - name: Skip (tag is not on master)
+        if: steps.guard.outputs.build != 'true'
+        run: echo "Tag commit is not on master -> skipping Docker build/push."
+
+      - name: Set up QEMU
+        if: steps.guard.outputs.build == 'true'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        if: steps.guard.outputs.build == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: steps.guard.outputs.build == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        if: steps.guard.outputs.build == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=tag
+
+      - name: Build and push
+        if: steps.guard.outputs.build == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
