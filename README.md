@@ -1,5 +1,13 @@
 # Radarr/Sonarr Jellyfin Notifier
 
+[![GitHub release](https://img.shields.io/github/v/release/tommekevda/radarr-sonarr-jellyfin-notifier)](https://github.com/tommekevda/radarr-sonarr-jellyfin-notifier/releases)
+[![License](https://img.shields.io/github/license/tommekevda/radarr-sonarr-jellyfin-notifier)](https://github.com/tommekevda/radarr-sonarr-jellyfin-notifier/blob/master/LICENSE)
+[![Build](https://github.com/tommekevda/radarr-sonarr-jellyfin-notifier/actions/workflows/docker-image.yml/badge.svg)](https://github.com/tommekevda/radarr-sonarr-jellyfin-notifier/actions/workflows/docker-image.yml)
+[![Docker](https://img.shields.io/badge/ghcr.io%2Ftommekevda%2Fradarr--sonarr--jellyfin--notifier-blue?logo=docker&logoColor=white)](https://github.com/tommekevda/radarr-sonarr-jellyfin-notifier/pkgs/container/radarr-sonarr-jellyfin-notifier)
+[![Last commit](https://img.shields.io/github/last-commit/tommekevda/radarr-sonarr-jellyfin-notifier)](https://github.com/tommekevda/radarr-sonarr-jellyfin-notifier/commits/master)
+[![Stars](https://img.shields.io/github/stars/tommekevda/radarr-sonarr-jellyfin-notifier)](https://github.com/tommekevda/radarr-sonarr-jellyfin-notifier/stargazers)
+[![Issues](https://img.shields.io/github/issues/tommekevda/radarr-sonarr-jellyfin-notifier)](https://github.com/tommekevda/radarr-sonarr-jellyfin-notifier/issues)
+
 This is a simple Flask application that listens for webhook events from Radarr or Sonarr and triggers a library refresh on Jellyfin.
 
 ## How it works
@@ -37,18 +45,18 @@ http://<jellyfin-notifier-ip>:5001/libraries?url=http://jellyfin.local:8096&api_
 
 ### docker-compose.yml
 
-The docker-compose file builds the image from GitHub and maps port 5001:
+The docker-compose file uses the `ghcr.io` reference in `build` and maps port 5001:
 
 ```yaml
 services:
   radarr-sonarr-jellyfin-notifier:
-    build: https://github.com/tommekevda/radarr-sonarr-jellyfin-notifier.git
+    build: ghcr.io/tommekevda/radarr-sonarr-jellyfin-notifier:latest
     container_name: radarr-sonarr-jellyfin-notifier
     restart: unless-stopped
     environment:
-      # JELLYFIN_API_KEY: ""                    # Jellyfin API key (optional if headers used)
-      # JELLYFIN_URL: ""                        # Jellyfin base URL (optional if headers used)
-      # JELLYFIN_NOTIFIER_ALLOWLIST: ""         # Comma-separated IPs/CIDRs
+      # JELLYFIN_API_KEY: ""                                  # Jellyfin API key (optional if headers used)
+      # JELLYFIN_URL: ""                                      # Jellyfin base URL (optional if headers used)
+      # JELLYFIN_NOTIFIER_ALLOWLIST: ""                       # Comma-separated IPs/CIDRs
       JELLYFIN_NOTIFIER_LOG_LEVEL: "INFO"                     # Log level
       JELLYFIN_NOTIFIER_PORT: "5001"                          # Bind port
       JELLYFIN_NOTIFIER_RATE_LIMIT_PER_MINUTE: "0"            # Per-IP limit (0=off)

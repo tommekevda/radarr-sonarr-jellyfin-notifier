@@ -1,17 +1,17 @@
 services:
   radarr-sonarr-jellyfin-notifier:
-    build: https://github.com/tommekevda/radarr-sonarr-jellyfin-notifier.git
+    build: ghcr.io/tommekevda/radarr-sonarr-jellyfin-notifier:latest
     container_name: radarr-sonarr-jellyfin-notifier
     restart: unless-stopped
     environment:
       # JELLYFIN_API_KEY: ""                                  # Jellyfin API key (optional if headers used)
       # JELLYFIN_URL: ""                                      # Jellyfin base URL (optional if headers used)
       # JELLYFIN_NOTIFIER_ALLOWLIST: ""                       # Comma-separated IPs/CIDRs
-      JELLYFIN_NOTIFIER_LOG_LEVEL: "INFO"                     # Log level
-      JELLYFIN_NOTIFIER_PORT: "5001"                          # Bind port
-      JELLYFIN_NOTIFIER_RATE_LIMIT_PER_MINUTE: "0"            # Per-IP limit (0=off)
-      JELLYFIN_NOTIFIER_REFRESH_DEBOUNCE_SECONDS: "10"        # Queue debounce
-      JELLYFIN_NOTIFIER_REFRESH_MAX_WAIT_SECONDS: "60"        # Max queue delay
+      JELLYFIN_NOTIFIER_LOG_LEVEL: "INFO" # Log level
+      JELLYFIN_NOTIFIER_PORT: "5001" # Bind port
+      JELLYFIN_NOTIFIER_RATE_LIMIT_PER_MINUTE: "0" # Per-IP limit (0=off)
+      JELLYFIN_NOTIFIER_REFRESH_DEBOUNCE_SECONDS: "10" # Queue debounce
+      JELLYFIN_NOTIFIER_REFRESH_MAX_WAIT_SECONDS: "60" # Max queue delay
     tmpfs:
       - /tmp
     ports:
