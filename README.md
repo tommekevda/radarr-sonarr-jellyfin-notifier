@@ -45,12 +45,12 @@ http://<jellyfin-notifier-ip>:5001/libraries?url=http://jellyfin.local:8096&api_
 
 ### docker-compose.yml
 
-The docker-compose file uses the `ghcr.io` reference in `build` and maps port 5001:
+The docker-compose file uses the `ghcr.io` image and maps port 5001:
 
 ```yaml
 services:
   radarr-sonarr-jellyfin-notifier:
-    build: ghcr.io/tommekevda/radarr-sonarr-jellyfin-notifier:latest
+    image: ghcr.io/tommekevda/radarr-sonarr-jellyfin-notifier:latest
     container_name: radarr-sonarr-jellyfin-notifier
     restart: unless-stopped
     environment:

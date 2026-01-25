@@ -1,9 +1,10 @@
 # Release Notes
 
-## 1.0.2 - 2026-01-25
+## 1.0.3 - 2026-01-25
 - Added: RELEASE_NOTES.md to track releases.
 - Added: Common GitHub badges to README.
-- Changed: README docker-compose example now matches the `ghcr.io` build reference.
+- Changed: docker-compose uses `image` for the GHCR reference.
+- Changed: README docker-compose example matches the compose file.
 
 ## v1.0.1 - 2026-01-25
 - Changed: Docker CI workflow now builds and pushes images.

@@ -1,6 +1,6 @@
 services:
   radarr-sonarr-jellyfin-notifier:
-    build: ghcr.io/tommekevda/radarr-sonarr-jellyfin-notifier:latest
+    image: ghcr.io/tommekevda/radarr-sonarr-jellyfin-notifier:latest
     container_name: radarr-sonarr-jellyfin-notifier
     restart: unless-stopped
     environment:
