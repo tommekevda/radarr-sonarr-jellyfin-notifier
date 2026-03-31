@@ -21,12 +21,21 @@ _RATE_LIMIT_STATE: Dict[str, List[float]] = {}
 _RATE_LIMIT_LOCK = threading.Lock()
 _REFRESH_QUEUE: Dict[Tuple[str, str], "RefreshBucket"] = {}
 _REFRESH_COND = threading.Condition()
+_VALID_REFRESH_PROFILES = {"auto", "fast", "missing", "full", "replace"}
+_REFRESH_PROFILE_PRIORITY = {
+    None: 0,
+    "fast": 1,
+    "missing": 2,
+    "full": 3,
+    "replace": 4,
+}
 
 
 @dataclass
 class RefreshBucket:
     pending_all: bool = False
     pending_ids: List[str] = field(default_factory=list)
+    refresh_profile: Optional[str] = None
     next_run: Optional[float] = None
     first_seen: Optional[float] = None
 
@@ -99,13 +108,19 @@ def _is_rate_limited(
 
 
 def _enqueue_refresh_request(
-    jellyfin_url: str, jellyfin_api_key: str, library_ids: Optional[List[str]]
+    jellyfin_url: str,
+    jellyfin_api_key: str,
+    library_ids: Optional[List[str]],
+    refresh_profile: Optional[str] = None,
 ) -> Tuple[bool, str, int]:
     debounce_seconds = _get_refresh_debounce_seconds()
     max_wait_seconds = _get_refresh_max_wait_seconds()
     if debounce_seconds <= 0:
         client = JellyfinClient(jellyfin_url, jellyfin_api_key)
-        return client.refresh(library_ids=library_ids or None)
+        return client.refresh(
+            library_ids=library_ids or None,
+            refresh_profile=refresh_profile,
+        )
 
     key = (jellyfin_url, jellyfin_api_key)
     now = time.time()
@@ -122,6 +137,9 @@ def _enqueue_refresh_request(
         else:
             bucket.pending_all = True
             bucket.pending_ids = []
+        bucket.refresh_profile = _merge_refresh_profiles(
+            bucket.refresh_profile, refresh_profile
+        )
         scheduled = now + debounce_seconds
         if max_wait_seconds > 0 and bucket.first_seen is not None:
             max_deadline = bucket.first_seen + max_wait_seconds
@@ -132,8 +150,9 @@ def _enqueue_refresh_request(
 
     target_desc = "(all)" if not library_ids else ", ".join(library_ids)
     logging.info(
-        "Refresh queued targets=%s delay_seconds=%s max_wait_seconds=%s",
+        "Refresh queued targets=%s profile=%s delay_seconds=%s max_wait_seconds=%s",
         target_desc,
+        refresh_profile or "(default)",
         debounce_seconds,
         max_wait_seconds,
     )
@@ -177,13 +196,22 @@ def _refresh_worker() -> None:
             targets = bucket.pending_ids
             target_desc = ", ".join(bucket.pending_ids)
         client = JellyfinClient(jellyfin_url, jellyfin_api_key)
-        ok, message, status = client.refresh(library_ids=targets)
+        ok, message, status = client.refresh(
+            library_ids=targets,
+            refresh_profile=bucket.refresh_profile,
+        )
         if ok:
-            logging.info("Refresh completed targets=%s status=%s", target_desc, status)
+            logging.info(
+                "Refresh completed targets=%s profile=%s status=%s",
+                target_desc,
+                bucket.refresh_profile or "(default)",
+                status,
+            )
         else:
             logging.warning(
-                "Refresh failed targets=%s status=%s message=%s",
+                "Refresh failed targets=%s profile=%s status=%s message=%s",
                 target_desc,
+                bucket.refresh_profile or "(default)",
                 status,
                 message,
             )
@@ -250,6 +278,67 @@ def parse_collection_types_header(req) -> List[str]:
     if not raw:
         return []
     return [part.strip().lower() for part in raw.split(",") if part.strip()]
+
+
+def normalize_refresh_profile(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        value = str(value)
+    normalized = value.strip().lower()
+    return normalized or None
+
+
+def _resolve_auto_refresh_profile(event_type: Any) -> str:
+    normalized = normalize_refresh_profile(event_type) or ""
+    if any(
+        token in normalized
+        for token in (
+            "rename",
+            "delete",
+            "health",
+            "update",
+            "manual",
+            "grab",
+        )
+    ):
+        return "fast"
+    return "missing"
+
+
+def resolve_refresh_profile(profile: Optional[str], event_type: Any) -> Optional[str]:
+    if profile != "auto":
+        return profile
+    return _resolve_auto_refresh_profile(event_type)
+
+
+def _merge_refresh_profiles(
+    current_profile: Optional[str], new_profile: Optional[str]
+) -> Optional[str]:
+    if _REFRESH_PROFILE_PRIORITY[new_profile] >= _REFRESH_PROFILE_PRIORITY[current_profile]:
+        return new_profile
+    return current_profile
+
+
+def parse_refresh_profile(
+    req, data: Optional[Dict[str, Any]] = None
+) -> Tuple[Optional[str], Optional[Tuple[str, int]]]:
+    raw = req.headers.get("X-Jellyfin-Refresh-Profile")
+    if not raw:
+        raw = req.form.get("refresh_profile") or req.args.get("refresh_profile")
+    if not raw and isinstance(data, dict):
+        raw = data.get("refresh_profile")
+
+    profile = normalize_refresh_profile(raw)
+    if not profile:
+        return None, None
+    if profile not in _VALID_REFRESH_PROFILES:
+        available = ", ".join(sorted(_VALID_REFRESH_PROFILES))
+        return (
+            None,
+            (f"Unknown refresh_profile: {profile}. Available: {available}", 400),
+        )
+    return profile, None
 
 
 def extract_jellyfin_headers(
@@ -346,6 +435,14 @@ def handle_radarr_event():
     if error_response:
         return error_response
 
+    requested_refresh_profile, refresh_profile_error = parse_refresh_profile(
+        request, data
+    )
+    if refresh_profile_error:
+        return refresh_profile_error
+    refresh_profile = resolve_refresh_profile(
+        requested_refresh_profile, data.get("eventType")
+    )
     client = JellyfinClient(jellyfin_url, jellyfin_api_key)
     library_ids = parse_library_ids_header(request)
     collection_types = parse_collection_types_header(request)
@@ -406,15 +503,20 @@ def handle_radarr_event():
     combined_ids = merge_ids(library_ids, resolved_ids)
     targets = ", ".join(combined_ids) if combined_ids else "(all)"
     logging.info(
-        "Refresh request source=radarr event_type=%s endpoint=%s targets=%s collection_types=%s",
+        "Refresh request source=radarr event_type=%s endpoint=%s targets=%s collection_types=%s requested_profile=%s resolved_profile=%s",
         data.get("eventType"),
         request.path,
         targets,
         ", ".join(collection_types) if collection_types else "(none)",
+        requested_refresh_profile or "(default)",
+        refresh_profile or "(default)",
     )
 
     _, refresh_message, refresh_status = _enqueue_refresh_request(
-        jellyfin_url, jellyfin_api_key, combined_ids or None
+        jellyfin_url,
+        jellyfin_api_key,
+        combined_ids or None,
+        refresh_profile=refresh_profile,
     )
     return refresh_message, refresh_status
 
@@ -428,6 +530,14 @@ def handle_sonarr_event():
     if error_response:
         return error_response
 
+    requested_refresh_profile, refresh_profile_error = parse_refresh_profile(
+        request, data
+    )
+    if refresh_profile_error:
+        return refresh_profile_error
+    refresh_profile = resolve_refresh_profile(
+        requested_refresh_profile, data.get("eventType")
+    )
     client = JellyfinClient(jellyfin_url, jellyfin_api_key)
     library_ids = parse_library_ids_header(request)
     collection_types = parse_collection_types_header(request)
@@ -488,15 +598,20 @@ def handle_sonarr_event():
     combined_ids = merge_ids(library_ids, resolved_ids)
     targets = ", ".join(combined_ids) if combined_ids else "(all)"
     logging.info(
-        "Refresh request source=sonarr event_type=%s endpoint=%s targets=%s collection_types=%s",
+        "Refresh request source=sonarr event_type=%s endpoint=%s targets=%s collection_types=%s requested_profile=%s resolved_profile=%s",
         data.get("eventType"),
         request.path,
         targets,
         ", ".join(collection_types) if collection_types else "(none)",
+        requested_refresh_profile or "(default)",
+        refresh_profile or "(default)",
     )
 
     _, refresh_message, refresh_status = _enqueue_refresh_request(
-        jellyfin_url, jellyfin_api_key, combined_ids or None
+        jellyfin_url,
+        jellyfin_api_key,
+        combined_ids or None,
+        refresh_profile=refresh_profile,
     )
     return refresh_message, refresh_status
 

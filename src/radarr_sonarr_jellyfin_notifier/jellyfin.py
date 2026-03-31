@@ -8,6 +8,34 @@ import requests
 JellyfinResult = Tuple[bool, str, int]
 JellyfinFoldersResult = Tuple[bool, str, int, Optional[List[Dict[str, Any]]]]
 
+ITEM_REFRESH_PROFILES: Dict[str, Dict[str, str]] = {
+    "missing": {
+        "MetadataRefreshMode": "Default",
+        "ImageRefreshMode": "Default",
+        "ReplaceAllMetadata": "false",
+        "ReplaceAllImages": "false",
+    },
+    "full": {
+        "MetadataRefreshMode": "FullRefresh",
+        "ImageRefreshMode": "FullRefresh",
+        "ReplaceAllMetadata": "false",
+        "ReplaceAllImages": "false",
+    },
+    "replace": {
+        "MetadataRefreshMode": "FullRefresh",
+        "ImageRefreshMode": "FullRefresh",
+        "ReplaceAllMetadata": "true",
+        "ReplaceAllImages": "true",
+    },
+}
+
+
+def build_item_refresh_params(refresh_profile: Optional[str] = None) -> Dict[str, str]:
+    params = {"Recursive": "true"}
+    if refresh_profile:
+        params.update(ITEM_REFRESH_PROFILES.get(refresh_profile, {}))
+    return params
+
 
 @dataclass
 class JellyfinClient:
@@ -112,50 +140,102 @@ class JellyfinClient:
 
         return True, "Jellyfin virtual folders listed", 200, folders
 
-    def refresh(self, library_ids: Optional[List[str]] = None) -> JellyfinResult:
+    def _refresh_items(
+        self,
+        item_ids: List[str],
+        refresh_profile: Optional[str] = None,
+        success_message: str = "Triggered Jellyfin refresh for selected libraries",
+    ) -> JellyfinResult:
+        failures: List[str] = []
+        params = build_item_refresh_params(refresh_profile)
+        for item_id in item_ids:
+            refresh_url = f"{self.base_url}/Items/{item_id}/Refresh"
+            try:
+                response = requests.post(
+                    refresh_url,
+                    headers=self.headers,
+                    params=params,
+                    timeout=10,
+                )
+            except requests.RequestException as exc:
+                logging.warning(
+                    "Jellyfin refresh failed for item_id=%s profile=%s error=%s",
+                    item_id,
+                    refresh_profile or "(default)",
+                    exc,
+                )
+                failures.append(f"{item_id} (error)")
+                continue
+
+            if response.status_code == 204:
+                logging.info(
+                    "Triggered Jellyfin refresh for item_id=%s profile=%s",
+                    item_id,
+                    refresh_profile or "(default)",
+                )
+            else:
+                logging.warning(
+                    "Jellyfin refresh failed for item_id=%s profile=%s status=%s",
+                    item_id,
+                    refresh_profile or "(default)",
+                    response.status_code,
+                )
+                failures.append(f"{item_id} (status {response.status_code})")
+
+        if failures:
+            return False, f"Failed to refresh libraries: {', '.join(failures)}", 500
+        return True, success_message, 200
+
+    def refresh(
+        self,
+        library_ids: Optional[List[str]] = None,
+        refresh_profile: Optional[str] = None,
+    ) -> JellyfinResult:
         if library_ids:
-            failures: List[str] = []
-            for lib_id in library_ids:
-                refresh_url = f"{self.base_url}/Items/{lib_id}/Refresh"
-                try:
-                    response = requests.post(
-                        refresh_url,
-                        headers=self.headers,
-                        params={"Recursive": "true"},
-                        timeout=10,
-                    )
-                except requests.RequestException as exc:
-                    logging.warning(
-                        "Jellyfin refresh failed for library_id=%s error=%s", lib_id, exc
-                    )
-                    failures.append(f"{lib_id} (error)")
-                    continue
+            return self._refresh_items(library_ids, refresh_profile=refresh_profile)
 
-                if response.status_code == 204:
-                    logging.info("Triggered Jellyfin refresh for library_id=%s", lib_id)
-                else:
-                    logging.warning(
-                        "Jellyfin refresh failed for library_id=%s status=%s",
-                        lib_id,
-                        response.status_code,
-                    )
-                    failures.append(f"{lib_id} (status {response.status_code})")
+        if refresh_profile in ITEM_REFRESH_PROFILES:
+            ok, message, status, folders = self.fetch_virtual_folders()
+            if not ok:
+                return False, message, status
 
-            if failures:
-                return False, f"Failed to refresh libraries: {', '.join(failures)}", 500
-            return True, "Triggered Jellyfin refresh for selected libraries", 200
+            all_library_ids = [
+                folder.get("ItemId") or folder.get("Id")
+                for folder in folders or []
+                if folder.get("ItemId") or folder.get("Id")
+            ]
+            if not all_library_ids:
+                logging.warning(
+                    "Jellyfin refresh failed profile=%s no libraries available",
+                    refresh_profile,
+                )
+                return False, "No Jellyfin libraries available to refresh", 500
+
+            return self._refresh_items(
+                all_library_ids,
+                refresh_profile=refresh_profile,
+                success_message="Triggered Jellyfin refresh for all libraries",
+            )
 
         refresh_url = f"{self.base_url}/Library/Refresh"
         try:
             response = requests.post(refresh_url, headers=self.headers, timeout=10)
         except requests.RequestException as exc:
-            logging.warning("Jellyfin refresh request failed error=%s", exc)
+            logging.warning(
+                "Jellyfin refresh request failed profile=%s error=%s",
+                refresh_profile or "(default)",
+                exc,
+            )
             return False, f"Failed to trigger Jellyfin: {exc}", 502
 
         if response.status_code == 204:
             return True, "Triggered Jellyfin refresh", 200
 
-        logging.warning("Jellyfin refresh failed status=%s", response.status_code)
+        logging.warning(
+            "Jellyfin refresh failed profile=%s status=%s",
+            refresh_profile or "(default)",
+            response.status_code,
+        )
         return False, f"Failed to trigger Jellyfin ({response.status_code})", 500
 
 

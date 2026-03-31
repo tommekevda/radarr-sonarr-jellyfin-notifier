@@ -1,6 +1,7 @@
 import unittest
 
 from radarr_sonarr_jellyfin_notifier.jellyfin import (
+    build_item_refresh_params,
     merge_ids,
     select_library_ids_by_collection,
 )
@@ -39,6 +40,36 @@ class JellyfinUtilsTest(unittest.TestCase):
         self.assertEqual(selected, [])
         self.assertEqual(missing, ["movies"])
         self.assertEqual(available, [])
+
+    def test_build_item_refresh_params_default(self):
+        params = build_item_refresh_params()
+        self.assertEqual(params, {"Recursive": "true"})
+
+    def test_build_item_refresh_params_missing_profile(self):
+        params = build_item_refresh_params("missing")
+        self.assertEqual(
+            params,
+            {
+                "Recursive": "true",
+                "MetadataRefreshMode": "Default",
+                "ImageRefreshMode": "Default",
+                "ReplaceAllMetadata": "false",
+                "ReplaceAllImages": "false",
+            },
+        )
+
+    def test_build_item_refresh_params_replace_profile(self):
+        params = build_item_refresh_params("replace")
+        self.assertEqual(
+            params,
+            {
+                "Recursive": "true",
+                "MetadataRefreshMode": "FullRefresh",
+                "ImageRefreshMode": "FullRefresh",
+                "ReplaceAllMetadata": "true",
+                "ReplaceAllImages": "true",
+            },
+        )
 
 
 if __name__ == "__main__":

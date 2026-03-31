@@ -68,7 +68,10 @@ class WebhookTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 202)
         mock_enqueue.assert_called_once_with(
-            "http://jf", "key", ["libA", "libB", "movie123"]
+            "http://jf",
+            "key",
+            ["libA", "libB", "movie123"],
+            refresh_profile=None,
         )
 
     @patch("radarr_sonarr_jellyfin_notifier.webhooks.JellyfinClient")
@@ -119,7 +122,83 @@ class WebhookTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 202)
         mock_client_cls.assert_called_once_with("http://jf", "key")
-        mock_enqueue.assert_called_once_with("http://jf", "key", None)
+        mock_enqueue.assert_called_once_with("http://jf", "key", None, refresh_profile=None)
+
+    @patch("radarr_sonarr_jellyfin_notifier.webhooks.JellyfinClient")
+    def test_radarr_refresh_profile_header_overrides_json_body(self, mock_client_cls):
+        mock_client_cls.return_value = SimpleNamespace()
+
+        with patch("radarr_sonarr_jellyfin_notifier.webhooks._enqueue_refresh_request") as mock_enqueue:
+            mock_enqueue.return_value = (True, "queued", 202)
+            resp = self.client.post(
+                "/radarr-webhook",
+                json={"eventType": "Download", "refresh_profile": "fast"},
+                headers={
+                    "X-Jellyfin-Url": "http://jf",
+                    "X-Jellyfin-Api-Key": "key",
+                    "X-Jellyfin-Refresh-Profile": "full",
+                },
+            )
+
+        self.assertEqual(resp.status_code, 202)
+        mock_enqueue.assert_called_once_with(
+            "http://jf", "key", None, refresh_profile="full"
+        )
+
+    @patch("radarr_sonarr_jellyfin_notifier.webhooks.JellyfinClient")
+    def test_radarr_refresh_profile_from_json_body(self, mock_client_cls):
+        mock_client_cls.return_value = SimpleNamespace()
+
+        with patch("radarr_sonarr_jellyfin_notifier.webhooks._enqueue_refresh_request") as mock_enqueue:
+            mock_enqueue.return_value = (True, "queued", 202)
+            resp = self.client.post(
+                "/radarr-webhook",
+                json={"eventType": "Download", "refresh_profile": "replace"},
+                headers={
+                    "X-Jellyfin-Url": "http://jf",
+                    "X-Jellyfin-Api-Key": "key",
+                },
+            )
+
+        self.assertEqual(resp.status_code, 202)
+        mock_enqueue.assert_called_once_with(
+            "http://jf", "key", None, refresh_profile="replace"
+        )
+
+    @patch("radarr_sonarr_jellyfin_notifier.webhooks.JellyfinClient")
+    def test_radarr_invalid_refresh_profile_returns_400(self, mock_client_cls):
+        resp = self.client.post(
+            "/radarr-webhook",
+            json={"eventType": "Download", "refresh_profile": "wat"},
+            headers={
+                "X-Jellyfin-Url": "http://jf",
+                "X-Jellyfin-Api-Key": "key",
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("Unknown refresh_profile", resp.get_data(as_text=True))
+        mock_client_cls.assert_not_called()
+
+    @patch("radarr_sonarr_jellyfin_notifier.webhooks.JellyfinClient")
+    def test_radarr_auto_refresh_profile_resolves_fast_for_rename(self, mock_client_cls):
+        mock_client_cls.return_value = SimpleNamespace()
+
+        with patch("radarr_sonarr_jellyfin_notifier.webhooks._enqueue_refresh_request") as mock_enqueue:
+            mock_enqueue.return_value = (True, "queued", 202)
+            resp = self.client.post(
+                "/radarr-webhook",
+                json={"eventType": "Rename"},
+                headers={
+                    "X-Jellyfin-Url": "http://jf",
+                    "X-Jellyfin-Api-Key": "key",
+                    "X-Jellyfin-Refresh-Profile": "auto",
+                },
+            )
+
+        self.assertEqual(resp.status_code, 202)
+        mock_enqueue.assert_called_once_with(
+            "http://jf", "key", None, refresh_profile="fast"
+        )
 
     @patch("radarr_sonarr_jellyfin_notifier.webhooks.JellyfinClient")
     def test_allowlist_blocks_request(self, mock_client_cls):
@@ -171,7 +250,9 @@ class WebhookTests(unittest.TestCase):
                 )
 
         self.assertEqual(resp.status_code, 202)
-        mock_enqueue.assert_called_once_with("http://jf", "key", None)
+        mock_enqueue.assert_called_once_with(
+            "http://jf", "key", None, refresh_profile=None
+        )
 
     @patch("radarr_sonarr_jellyfin_notifier.webhooks.JellyfinClient")
     def test_rate_limit_exceeded_returns_429(self, mock_client_cls):
@@ -299,7 +380,9 @@ class WebhookTests(unittest.TestCase):
             )
 
         self.assertEqual(resp.status_code, 202)
-        mock_enqueue.assert_called_once_with("http://jf", "key", None)
+        mock_enqueue.assert_called_once_with(
+            "http://jf", "key", None, refresh_profile=None
+        )
 
     @patch("radarr_sonarr_jellyfin_notifier.webhooks.JellyfinClient")
     def test_sonarr_unknown_collection_type_returns_400(self, mock_client_cls):
@@ -352,7 +435,9 @@ class WebhookTests(unittest.TestCase):
             )
 
         self.assertEqual(resp.status_code, 202)
-        mock_enqueue.assert_called_once_with("http://jf", "key", ["libA", "tv123"])
+        mock_enqueue.assert_called_once_with(
+            "http://jf", "key", ["libA", "tv123"], refresh_profile=None
+        )
 
     @patch("radarr_sonarr_jellyfin_notifier.webhooks.JellyfinClient")
     def test_sonarr_missing_headers_returns_400(self, mock_client_cls):

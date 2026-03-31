@@ -31,8 +31,8 @@ class RefreshBufferTests(unittest.TestCase):
         done = threading.Event()
         calls = []
 
-        def refresh(library_ids=None):
-            calls.append(library_ids)
+        def refresh(library_ids=None, refresh_profile=None):
+            calls.append((library_ids, refresh_profile))
             done.set()
             return True, "ok", 200
 
@@ -45,15 +45,15 @@ class RefreshBufferTests(unittest.TestCase):
         self.assertEqual(result2[2], 202)
         self.assertTrue(done.wait(timeout=2))
         self.assertEqual(len(calls), 1)
-        self.assertEqual(calls[0], ["a", "b"])
+        self.assertEqual(calls[0], (["a", "b"], None))
 
     @patch("radarr_sonarr_jellyfin_notifier.webhooks.JellyfinClient")
     def test_buffer_all_overrides_ids(self, mock_client_cls):
         done = threading.Event()
         calls = []
 
-        def refresh(library_ids=None):
-            calls.append(library_ids)
+        def refresh(library_ids=None, refresh_profile=None):
+            calls.append((library_ids, refresh_profile))
             done.set()
             return True, "ok", 200
 
@@ -63,13 +63,13 @@ class RefreshBufferTests(unittest.TestCase):
         webhooks._enqueue_refresh_request("http://jf", "key", None)
 
         self.assertTrue(done.wait(timeout=2))
-        self.assertEqual(calls, [None])
+        self.assertEqual(calls, [(None, None)])
 
     @patch("radarr_sonarr_jellyfin_notifier.webhooks.JellyfinClient")
     def test_buffer_max_wait_caps_delay(self, mock_client_cls):
         done = threading.Event()
 
-        def refresh(library_ids=None):
+        def refresh(library_ids=None, refresh_profile=None):
             done.set()
             return True, "ok", 200
 
@@ -85,6 +85,28 @@ class RefreshBufferTests(unittest.TestCase):
             webhooks._enqueue_refresh_request("http://jf", "key", ["a"])
 
         self.assertTrue(done.wait(timeout=2))
+
+    @patch("radarr_sonarr_jellyfin_notifier.webhooks.JellyfinClient")
+    def test_buffer_keeps_strongest_refresh_profile(self, mock_client_cls):
+        done = threading.Event()
+        calls = []
+
+        def refresh(library_ids=None, refresh_profile=None):
+            calls.append((library_ids, refresh_profile))
+            done.set()
+            return True, "ok", 200
+
+        mock_client_cls.return_value = SimpleNamespace(refresh=Mock(side_effect=refresh))
+
+        webhooks._enqueue_refresh_request(
+            "http://jf", "key", ["a"], refresh_profile="fast"
+        )
+        webhooks._enqueue_refresh_request(
+            "http://jf", "key", ["b"], refresh_profile="missing"
+        )
+
+        self.assertTrue(done.wait(timeout=2))
+        self.assertEqual(calls, [(["a", "b"], "missing")])
 
 
 if __name__ == "__main__":

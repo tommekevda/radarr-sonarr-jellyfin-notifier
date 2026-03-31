@@ -161,6 +161,26 @@ class JellyfinClientTests(unittest.TestCase):
         )
 
     @patch("radarr_sonarr_jellyfin_notifier.jellyfin.requests.post")
+    def test_refresh_selected_libraries_with_missing_profile(self, mock_post):
+        mock_post.return_value = _make_response(status_code=204)
+        ok, message, status = self.client.refresh(["a"], refresh_profile="missing")
+        self.assertTrue(ok)
+        self.assertEqual(status, 200)
+        self.assertIn("selected libraries", message)
+        mock_post.assert_called_once_with(
+            "http://jf/Items/a/Refresh",
+            headers={"X-Emby-Token": "key"},
+            params={
+                "Recursive": "true",
+                "MetadataRefreshMode": "Default",
+                "ImageRefreshMode": "Default",
+                "ReplaceAllMetadata": "false",
+                "ReplaceAllImages": "false",
+            },
+            timeout=10,
+        )
+
+    @patch("radarr_sonarr_jellyfin_notifier.jellyfin.requests.post")
     def test_refresh_selected_libraries_failure_status(self, mock_post):
         mock_post.return_value = _make_response(status_code=500)
         ok, message, status = self.client.refresh(["bad"])
@@ -188,6 +208,62 @@ class JellyfinClientTests(unittest.TestCase):
             headers={"X-Emby-Token": "key"},
             timeout=10,
         )
+
+    @patch("radarr_sonarr_jellyfin_notifier.jellyfin.requests.get")
+    @patch("radarr_sonarr_jellyfin_notifier.jellyfin.requests.post")
+    def test_refresh_all_with_full_profile_targets_all_libraries(
+        self, mock_post, mock_get
+    ):
+        mock_get.return_value = _make_response(
+            json_data=[
+                {"Name": "Movies", "ItemId": "movie123"},
+                {"Name": "TV", "ItemId": "tv123"},
+            ]
+        )
+        mock_post.side_effect = [
+            _make_response(status_code=204),
+            _make_response(status_code=204),
+        ]
+        ok, message, status = self.client.refresh(refresh_profile="full")
+        self.assertTrue(ok)
+        self.assertEqual(status, 200)
+        self.assertEqual(message, "Triggered Jellyfin refresh for all libraries")
+        mock_post.assert_any_call(
+            "http://jf/Items/movie123/Refresh",
+            headers={"X-Emby-Token": "key"},
+            params={
+                "Recursive": "true",
+                "MetadataRefreshMode": "FullRefresh",
+                "ImageRefreshMode": "FullRefresh",
+                "ReplaceAllMetadata": "false",
+                "ReplaceAllImages": "false",
+            },
+            timeout=10,
+        )
+        mock_post.assert_any_call(
+            "http://jf/Items/tv123/Refresh",
+            headers={"X-Emby-Token": "key"},
+            params={
+                "Recursive": "true",
+                "MetadataRefreshMode": "FullRefresh",
+                "ImageRefreshMode": "FullRefresh",
+                "ReplaceAllMetadata": "false",
+                "ReplaceAllImages": "false",
+            },
+            timeout=10,
+        )
+
+    @patch("radarr_sonarr_jellyfin_notifier.jellyfin.requests.get")
+    @patch("radarr_sonarr_jellyfin_notifier.jellyfin.requests.post")
+    def test_refresh_all_with_profile_propagates_folder_lookup_error(
+        self, mock_post, mock_get
+    ):
+        mock_get.side_effect = requests.RequestException("boom")
+        ok, message, status = self.client.refresh(refresh_profile="full")
+        self.assertFalse(ok)
+        self.assertEqual(status, 502)
+        self.assertIn("Failed to fetch Jellyfin virtual folders", message)
+        mock_post.assert_not_called()
 
     @patch("radarr_sonarr_jellyfin_notifier.jellyfin.requests.post")
     def test_refresh_all_failure_status(self, mock_post):
