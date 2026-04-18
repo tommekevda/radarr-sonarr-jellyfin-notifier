@@ -1,5 +1,10 @@
 # Release Notes
 
+## 1.1.1 - 2026-04-18
+- Fixed: GitHub Actions Docker manifest publishing now handles newline-delimited tag output from `docker/metadata-action` without shell parsing failures.
+- Changed: README now notes how to pin the published Docker image to `1.1.1` instead of following `latest`.
+- Changed: Project version metadata updated to `1.1.1`.
+
 ## 1.1.0 - 2026-03-31
 - Added: Request-level `refresh_profile` support for Radarr and Sonarr webhooks.
 - Added: `X-Jellyfin-Refresh-Profile` header support and `refresh_profile` POST/body fallback with header precedence.

@@ -120,12 +120,15 @@ jobs:
 
       - name: Create multi-arch manifests
         shell: bash
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           set -euo pipefail
-          for tag in ${{ steps.meta.outputs.tags }}; do
+          while IFS= read -r tag; do
+            [[ -n "$tag" ]] || continue
             echo "Creating manifest for $tag"
             docker buildx imagetools create \
               -t "$tag" \
               "${tag}-amd64" \
               "${tag}-arm64"
-          done
+          done <<< "$TAGS"
