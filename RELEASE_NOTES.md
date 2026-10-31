@@ -1,5 +1,12 @@
 # Release Notes
 
+## 1.2.1 - 2026-10-31
+
+- Changed: GitHub Actions dependencies now use their Node.js 24 runtime generations instead of Node.js 20.
+- Changed: `actions/checkout` updated from v4 to v7 and `softprops/action-gh-release` from v2 to v3.
+- Changed: Docker Actions updated to their Node.js 24 majors: `setup-qemu-action` v4, `setup-buildx-action` v4, `login-action` v4, `metadata-action` v6, and `build-push-action` v7.
+- Changed: Project version metadata and the pinned container example updated to `1.2.1`.
+
 ## 1.2.0 - 2026-10-31
 
 - Fixed: Jellyfin API requests now use `Authorization: MediaBrowser Token="<api-key>"`, which is supported by Jellyfin 12.
