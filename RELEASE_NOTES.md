@@ -1,10 +1,11 @@
 # Release Notes
 
-## Unreleased
+## 1.2.0 - 2026-10-31
 
 - Fixed: Jellyfin API requests now use `Authorization: MediaBrowser Token="<api-key>"`, which is supported by Jellyfin 12.
 - Removed: Outbound Jellyfin requests no longer use the deprecated `X-Emby-Token` header or lowercase `api_key` query parameter.
 - Changed: README now documents Jellyfin 12 authentication compatibility and distinguishes notifier input parameters from outbound Jellyfin authentication.
+- Changed: Project version metadata and the pinned container example updated to `1.2.0`.
 
 ## 1.1.1 - 2026-04-18
 - Fixed: GitHub Actions Docker manifest publishing now handles newline-delimited tag output from `docker/metadata-action` without shell parsing failures.

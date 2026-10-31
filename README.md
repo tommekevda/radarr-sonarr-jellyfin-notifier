@@ -85,7 +85,7 @@ services:
       - "5001:5001"
 ```
 
-`latest` tracks the newest published container image. If you want to pin this release instead, use `ghcr.io/tommekevda/radarr-sonarr-jellyfin-notifier:1.1.1`.
+`latest` tracks the newest published container image. If you want to pin this release instead, use `ghcr.io/tommekevda/radarr-sonarr-jellyfin-notifier:1.2.0`.
 
 For local builds, use `docker-compose.local.yml` (it builds from `.`).
 
