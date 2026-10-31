@@ -10,6 +10,16 @@
 
 This is a simple Flask application that listens for webhook events from Radarr or Sonarr and triggers a Jellyfin refresh.
 
+## Jellyfin compatibility
+
+The notifier supports Jellyfin 12 and uses the current Jellyfin authorization scheme:
+
+```http
+Authorization: MediaBrowser Token="<api-key>"
+```
+
+Legacy Jellyfin authentication methods such as `X-Emby-Token` and Jellyfin's lowercase `api_key` query parameter are not used. Jellyfin 12 disables those methods by default. Existing notifier installations only need a valid API key from **Dashboard > API Keys**; the notifier constructs the Jellyfin `Authorization` header automatically.
+
 ## How it works
 
 - The app exposes webhook endpoints: `/radarr-webhook` for Radarr and `/sonarr-webhook` for Sonarr.
@@ -38,13 +48,15 @@ The app runs a Flask server on port `5001` (or `JELLYFIN_NOTIFIER_PORT`/`PORT`) 
 ### List libraries
 
 - `GET /libraries` returns JSON with your Jellyfin libraries (name, itemId, collectionType, locations).
-- Provide Jellyfin credentials via headers (`X-Jellyfin-Url`, `X-Jellyfin-Api-Key`), query params (`?url=<...>&api_key=<...>`), or env vars (`JELLYFIN_URL`, `JELLYFIN_API_KEY`).
+- Provide notifier credentials via headers (`X-Jellyfin-Url`, `X-Jellyfin-Api-Key`), query params (`?url=<...>&api_key=<...>`), or env vars (`JELLYFIN_URL`, `JELLYFIN_API_KEY`). The notifier then authenticates its own Jellyfin API requests with the supported `Authorization: MediaBrowser` scheme.
 - Use this to copy `ItemId`s for the optional `X-Jellyfin-Library-Ids` header or to see available `collectionType` values.
 - Example (browser-friendly URL; `jellyfin-notifier-ip`):
 
 ```
 http://<jellyfin-notifier-ip>:5001/libraries?url=http://jellyfin.local:8096&api_key=<your-jellyfin-api-key>
 ```
+
+The `api_key` shown here is a parameter of the notifier's `/libraries` endpoint. It is not forwarded to Jellyfin as Jellyfin's removed lowercase `api_key` authentication parameter. Prefer headers or environment variables where possible so the key does not appear in browser, proxy, or access logs.
 
 ## Running with Docker
 

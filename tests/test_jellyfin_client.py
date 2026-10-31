@@ -24,7 +24,10 @@ class JellyfinClientTests(unittest.TestCase):
         self.assertEqual(self.client.base_url, "http://jf")
 
     def test_headers_include_token(self):
-        self.assertEqual(self.client.headers, {"X-Emby-Token": "key"})
+        self.assertEqual(
+            self.client.headers,
+            {"Authorization": 'MediaBrowser Token="key"'},
+        )
 
     @patch("radarr_sonarr_jellyfin_notifier.jellyfin.requests.get")
     def test_ping_success(self, mock_get):
@@ -36,7 +39,7 @@ class JellyfinClientTests(unittest.TestCase):
         mock_get.assert_any_call("http://jf", timeout=5)
         mock_get.assert_any_call(
             "http://jf/System/Info",
-            headers={"X-Emby-Token": "key"},
+            headers={"Authorization": 'MediaBrowser Token="key"'},
             timeout=5,
         )
 
@@ -87,6 +90,11 @@ class JellyfinClientTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(message, "Jellyfin virtual folders listed")
         self.assertEqual([f["Name"] for f in folders], ["A", "b"])
+        mock_get.assert_called_once_with(
+            "http://jf/Library/VirtualFolders",
+            headers={"Authorization": 'MediaBrowser Token="key"'},
+            timeout=5,
+        )
 
     @patch("radarr_sonarr_jellyfin_notifier.jellyfin.requests.get")
     def test_fetch_virtual_folders_handles_dict(self, mock_get):
@@ -149,13 +157,13 @@ class JellyfinClientTests(unittest.TestCase):
         self.assertIn("selected libraries", message)
         mock_post.assert_any_call(
             "http://jf/Items/a/Refresh",
-            headers={"X-Emby-Token": "key"},
+            headers={"Authorization": 'MediaBrowser Token="key"'},
             params={"Recursive": "true"},
             timeout=10,
         )
         mock_post.assert_any_call(
             "http://jf/Items/b/Refresh",
-            headers={"X-Emby-Token": "key"},
+            headers={"Authorization": 'MediaBrowser Token="key"'},
             params={"Recursive": "true"},
             timeout=10,
         )
@@ -169,7 +177,7 @@ class JellyfinClientTests(unittest.TestCase):
         self.assertIn("selected libraries", message)
         mock_post.assert_called_once_with(
             "http://jf/Items/a/Refresh",
-            headers={"X-Emby-Token": "key"},
+            headers={"Authorization": 'MediaBrowser Token="key"'},
             params={
                 "Recursive": "true",
                 "MetadataRefreshMode": "Default",
@@ -205,7 +213,7 @@ class JellyfinClientTests(unittest.TestCase):
         self.assertIn("Triggered Jellyfin refresh", message)
         mock_post.assert_called_once_with(
             "http://jf/Library/Refresh",
-            headers={"X-Emby-Token": "key"},
+            headers={"Authorization": 'MediaBrowser Token="key"'},
             timeout=10,
         )
 
@@ -230,7 +238,7 @@ class JellyfinClientTests(unittest.TestCase):
         self.assertEqual(message, "Triggered Jellyfin refresh for all libraries")
         mock_post.assert_any_call(
             "http://jf/Items/movie123/Refresh",
-            headers={"X-Emby-Token": "key"},
+            headers={"Authorization": 'MediaBrowser Token="key"'},
             params={
                 "Recursive": "true",
                 "MetadataRefreshMode": "FullRefresh",
@@ -242,7 +250,7 @@ class JellyfinClientTests(unittest.TestCase):
         )
         mock_post.assert_any_call(
             "http://jf/Items/tv123/Refresh",
-            headers={"X-Emby-Token": "key"},
+            headers={"Authorization": 'MediaBrowser Token="key"'},
             params={
                 "Recursive": "true",
                 "MetadataRefreshMode": "FullRefresh",
@@ -289,7 +297,7 @@ class JellyfinClientTests(unittest.TestCase):
         self.assertEqual(status, 200)
         mock_post.assert_called_once_with(
             "http://jf/Library/Refresh",
-            headers={"X-Emby-Token": "key"},
+            headers={"Authorization": 'MediaBrowser Token="key"'},
             timeout=10,
         )
 

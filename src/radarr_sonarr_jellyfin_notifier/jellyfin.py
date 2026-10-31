@@ -48,7 +48,7 @@ class JellyfinClient:
 
     @property
     def headers(self) -> Dict[str, str]:
-        return {"X-Emby-Token": self.api_key}
+        return {"Authorization": f'MediaBrowser Token="{self.api_key}"'}
 
     def ping(self) -> JellyfinResult:
         try:
@@ -80,9 +80,8 @@ class JellyfinClient:
 
     def fetch_virtual_folders(self) -> JellyfinFoldersResult:
         url = f"{self.base_url}/Library/VirtualFolders"
-        params = {"api_key": self.api_key}
         try:
-            response = requests.get(url, headers=self.headers, params=params, timeout=5)
+            response = requests.get(url, headers=self.headers, timeout=5)
         except requests.RequestException as exc:
             logging.warning("Jellyfin virtual folders request failed error=%s", exc)
             return False, f"Failed to fetch Jellyfin virtual folders: {exc}", 502, None
